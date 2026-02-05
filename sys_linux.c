@@ -56,9 +56,7 @@
 #define LCur  "\033[u"
 #define Cce   "\033[K"
 
-#define DBuf 4096
-#define NBuf 1024
-
+extern unsigned char FileBuf[DBuf+NBuf];
 void* os_open_file(const char* name) { return (void*)fopen(name, "rb"); }
 void* os_create_file(const char* name) { return (void*)fopen(name, "wb"); }
 void  os_close_file(void* handle) { if (handle) fclose((FILE*)handle); }
@@ -101,7 +99,6 @@ void   os_printf(const char* format, ...) {
 void delay_ms(int ms) {
     if (ms > 0) { struct timespec ts; ts.tv_sec = ms / 1000;
     ts.tv_nsec = (ms % 1000) * 1000000L; nanosleep(&ts, NULL); } }
-unsigned char FileBuf[DBuf+NBuf];
 void SWD(void) {
     char *path = (char *)FileBuf;
     ssize_t len = readlink("/proc/self/exe", path, DBuf - 1);
