@@ -56,7 +56,9 @@
 #define LCur  "\033[u"
 #define Cce   "\033[K"
 
-unsigned char FileBuf[DBuf+NBuf];
+#define DBuf 4096
+#define NBuf 1024
+
 void* os_open_file(const char* name) { return (void*)fopen(name, "rb"); }
 void* os_create_file(const char* name) { return (void*)fopen(name, "wb"); }
 void  os_close_file(void* handle) { if (handle) fclose((FILE*)handle); }
@@ -99,6 +101,7 @@ void   os_printf(const char* format, ...) {
 void delay_ms(int ms) {
     if (ms > 0) { struct timespec ts; ts.tv_sec = ms / 1000;
     ts.tv_nsec = (ms % 1000) * 1000000L; nanosleep(&ts, NULL); } }
+unsigned char FileBuf[DBuf+NBuf];
 void SWD(void) {
     char *path = (char *)FileBuf;
     ssize_t len = readlink("/proc/self/exe", path, DBuf - 1);
@@ -136,24 +139,12 @@ const char* GetKey(void) {
         while (--len > 0) read(0, ++p, 1);
         return b; }
     if (c > 32 && c < 127 ) return b;
-    *p++ = 27;
-    switch (c) {
-         case  3: *p = K_CRC; return b;
-         case  9: *p = K_TAB; return b;
-         case 10: 
-         case 13: *p = K_ENT; return b;
-         case 32: *p = K_SPA; return b;
-         case  8:
-        case 127: *p = K_BAC; return b;
-         case 27: {
-                  int i = 0;
-                  while (i < 4 && read(0, p + i, 1) > 0) i++;
-                  if (i == 0) { b[1] = K_ESC; return b; }
-                  for (int j = 0; j < (int)(sizeof(nameid)/sizeof(KeyIDMap)); j++) {
-                      const char *s1 = p, *s2 = nameid[j].name;
-                      while (*s1 && *s1 == *s2) { s1++; s2++; }
-                      if (*s1 == '\0' && *s2 == '\0') { 
-                          *p++ = nameid[j].id; *p = 0; return b; } } }
-                  __attribute__((fallthrough));
-         default: *p = 0;   return b; } }        
+    *p++ = 27; *p = c; if (c == 127) { *p = K_BAC; return b; }
+    if (c != 27) return b;
+    int i = 0; while (i < 4 && read(0, p + i, 1) > 0) i++;
+    if (i == 0) return b;
+    for (int j = 0; j < (int)(sizeof(nameid)/sizeof(KeyIDMap)); j++) {
+        const char *s1 = p, *s2 = nameid[j].name;
+        while (*s1 && *s1 == *s2) { s1++; s2++; }
+        if (*s1 == '\0' && *s2 == '\0') { *p++ = nameid[j].id; *p = 0; return b; } } }
 /*___________________________________________________________________________*/
