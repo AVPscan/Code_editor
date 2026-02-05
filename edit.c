@@ -6,19 +6,20 @@
  * распространять ее и/или изменять согласно условиям Стандартной общественной 
  * лицензии GNU (GPLv3).
  */
- 
+
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "sys.h"
 
-// --- Константы проектирования ---
+// --- Константы проектирования 
 #define MAX_LOGIC_PAIRS  32    
 #define MAX_PAIR_STR     32   
 #define NEST_STACK_DEPTH 128   
 #define ANALYZE_QUANTA   20    
-
 // --- Основные структуры ---
+
 typedef struct {
     char        open[MAX_PAIR_STR];
     char        close[MAX_PAIR_STR];
@@ -32,13 +33,12 @@ typedef struct {
 } Token_t;
 
 typedef struct {
-    int         read_ptr;       // Текущая позиция чтения в FileBuf
-    int         write_ptr;      // Позиция для записи (если нужно)
+    int         read_ptr;       // src в FileBuf
+    int         write_ptr;      // dst (чистый поток) в FileBuf
     int         current_line;
     int         nest_stack[NEST_STACK_DEPTH];
     int         stack_ptr;
-    int         in_comment;
-    int         in_string;
+    int         in_comment, in_string;
 } ParseState;
 
 typedef struct {
@@ -46,35 +46,25 @@ typedef struct {
     Pair_t      pairs[MAX_LOGIC_PAIRS];
     ParseState  ps;
     
-    // Файловый блок для NextChunk
-    void*       file_h;         // Хендл открытого файла
-    long        file_offset;    // Текущее смещение для os_read_file_at
-    long        file_size;      // Общий размер (для прогресса)
-    int         is_eof;         // Флаг достижения конца физического файла
+    void*       file_h;         // Хендл из os_open_file
+    long        file_offset;    // Смещение для os_read_file_at
+    long        file_size;      
+    char*       current_file;   // Имя файла (триггер для автомата)
     
-    char        eol_str[MAX_PAIR_STR];
-    uint32_t    noise_hashes[MAX_NOISE_WORDS];
-    int         t_count, t_cap, p_count, n_count, indent_step, eol_len;
-    
-    int         ready_to_help;      
-    int         analysis;           // Флаг: идет ли процесс анализа
-    int         buffer_end;         // Конец валидных данных в FileBuf
-    uint64_t    tokens_at_last_check; 
+    int         t_count, t_cap, p_count, analysis;
+    int         buffer_end;     // Граница в FileBuf
+    int         is_eof;         
+    int         was_repaired;   // Флаг очистки мусора
 } LogicEngine;
 
-// --- Вспомогательные функции работы с текстом ---
-int StringBC(const char *s, int *c) {
-    int b = 0, i = 0; if (!s) { if (c) *c = 0; return 0; }
-    while (s[b]) { if ((s[b] & 0xC0) != 0x80) i++; b++; }
-    if (c) *c = i;
-    return b; }
-int StrLenB(const char *s) { return s ? strlen(s) : 0; }
-int StrLen(const char *s) {
-    if (!s) return 0;
-    const unsigned char *p = (const unsigned char *)s;
-    int count = 0;
-    while (*p) { if ((*p++ & 0xC0) != 0x80) count++; }
-    return count; }
+// --- Вспомогательные функции ---
+
+uint32_t GetHash(const char *s, int len) {
+    uint32_t hash = 2166136261u;
+    for (int i = 0; i < len; i++) { hash ^= (uint8_t)s[i]; hash *= 16777619u; }
+    return hash; 
+}
+
 int CharType(const unsigned char* buf, int* len) {
     unsigned char c = *buf; int l;
     if (c < 128) { *len = 1;
@@ -82,133 +72,203 @@ int CharType(const unsigned char* buf, int* len) {
         if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '$') return 2;
         if (c >= 33 && c <= 126) return 4;
         if (c == 0) return 5;
-        return 3; }
+        return 3; 
+    }
     if ((c & 0xE0) == 0xC0) l = 2;
     else if ((c & 0xF0) == 0xE0) l = 3;
     else if ((c & 0xF8) == 0xF0) l = 4;
     else { *len = 1; return 5; }
-    *len = l; return 2; }
+    *len = l; return 2; 
+}
 
-// --- Сердце Движка ---
-uint32_t GetHash(const char *s, int len) {
-    uint32_t hash = 2166136261u;
-    for (int i = 0; i < len; i++) { hash ^= (uint8_t)s[i]; hash *= 16777619u; }
-    return hash; }
-
-// Детектор внешних связей: "молча" проверяет наличие файла при нахождении сигнатуры xxx.yyy
-void TryLinkFile(LogicEngine *le, const char *name) {
-    if (!name || !strchr(name, '.')) return;
-    if (os_file_exists(name)) {
-        // Здесь будет логика добавления файла в очередь фоновой индексации
-        // Для "всеядности" мы просто фиксируем факт связи
-    } }
+// --- Ядро: Работа с данными ---
 
 int NextChunk(LogicEngine *le) {
-    if (!le->file_h) return 1;
+    if (!le->current_file) return 1;
+
+    // Авто-инициализация открытия при первом обращении
+    if (!le->file_h) {
+        le->file_h = os_open_file(le->current_file);
+        if (!le->file_h) { le->current_file = 0; le->analysis = 0; return 1; }
+        le->file_offset = 0;
+        le->is_eof = 0;
+        le->buffer_end = 0;
+        le->ps.read_ptr = 0;
+    }
+
     size_t tail = 0;
     if (le->buffer_end > 0 && le->ps.read_ptr < le->buffer_end) {
         tail = le->buffer_end - le->ps.read_ptr;
         if (tail > 0) {
             if (tail > NBuf) tail = NBuf; 
-            memmove(FileBuf, FileBuf + le->ps.read_ptr, tail); } }
+            memmove(FileBuf, FileBuf + le->ps.read_ptr, tail); 
+        } 
+    }
+
     int read = os_read_file_at(le->file_h, le->file_offset, FileBuf + tail, DBuf);
     if (read <= 0) {
-        if (tail == 0) { os_close_file(le->file_h); le->file_h = NULL; le->analysis = 0; return 1; }
-        le->is_eof = 1; } 
-    else le->file_offset += read;
-    size_t total = tail + read;
-    size_t safe_end = total;
-    if (!le->is_eof && total > NBuf) {
-        size_t limit = total - NBuf;
-        while (safe_end > limit) {
-            int l; int type = CharType(FileBuf + safe_end - 1, &l);
-            if (type == 3 || type == 4) break;
-            safe_end--; }
-        if (safe_end <= limit) safe_end = total; }
+        if (tail == 0) { 
+            os_close_file(le->file_h); le->file_h = 0; 
+            le->current_file = 0; le->analysis = 0; return 1; 
+        }
+        le->is_eof = 1; 
+    } else le->file_offset += read;
+
     le->ps.read_ptr = 0;
-    le->buffer_end = safe_end;
-    return 0; }
+    le->ps.write_ptr = 0; // Начинаем запись чистого потока заново в новом куске
+    le->buffer_end = (int)(tail + (read > 0 ? read : 0));
+    return 0; 
+}
+
+void SaveRepairedPart(LogicEngine *le) {
+    // Твоя функция сохранения очищенного кода из FileBuf до ps.write_ptr
+}
 
 int AddOrUpdateToken(LogicEngine *le, unsigned char *name, int len, int level) {
     if (len <= 0 || !name) return -1;
-    TryLinkFile(le, name); // Проверка на файл-сигнатуру
-    uint32_t h = GetHash(name, len); int tmp, mid, low = 0, high = le->t_count - 1;
+    uint32_t h = GetHash((char*)name, len); 
+    int tmp, mid, low = 0, high = le->t_count - 1;
     while (low <= high) {
         mid = low + (high - low) / 2;
         if (le->tokens[mid].hash == h) {
-            if ((tmp = strcmp(le->tokens[mid].name, name)) == 0) { le->tokens[mid].count++;
+            if ((tmp = strncmp(le->tokens[mid].name, (char*)name, len)) == 0) { 
+                le->tokens[mid].count++;
                 if (le->tokens[mid].weight < 255) le->tokens[mid].weight++;
-                if (level < le->tokens[mid].level) le->tokens[mid].level = level;
-                return mid; }
-            if (tmp < 0) low = mid + 1;
-            else high = mid - 1; } 
-        else if (le->tokens[mid].hash < h) low = mid + 1;
-            else high = mid - 1; }
-    if (le->t_count >= le->t_cap) {  int new_cap = (le->t_cap == 0) ? 256 : le->t_cap * 2;
-        Token_t* t_tmp = (Token_t*)os_realloc(le->tokens, new_cap * sizeof(Token_t));
-        if (!t_tmp) return -1;
-        le->tokens = t_tmp; le->t_cap = new_cap; }
+                return mid; 
+            }
+            if (tmp < 0) low = mid + 1; else high = mid - 1;
+        } else if (le->tokens[mid].hash < h) low = mid + 1;
+        else high = mid - 1;
+    }
+    if (le->t_count >= le->t_cap) {  
+        int n_cap = (le->t_cap == 0) ? 256 : le->t_cap * 2;
+        le->tokens = (Token_t*)os_realloc(le->tokens, n_cap * sizeof(Token_t));
+        le->t_cap = n_cap; 
+    }
     if (low < le->t_count) memmove(&le->tokens[low + 1], &le->tokens[low], (le->t_count - low) * sizeof(Token_t));
-    le->tokens[low].name = os_strdup(name); le->tokens[low].hash = h; le->tokens[low].count = 1;
-    le->tokens[low].weight = 10; le->tokens[low].level = level; le->tokens[low].role = ROLE_UNKNOWN;
-    le->tokens[low].parent_idx = -1; le->tokens[low].v_width = StrLen(name); le->t_count++; return low; }
+    
+    // Копируем имя из буфера в кучу, так как FileBuf изменится
+    le->tokens[low].name = (char*)os_malloc(len + 1);
+    memcpy(le->tokens[low].name, name, len);
+    le->tokens[low].name[len] = '\0';
+    
+    le->tokens[low].hash = h; le->tokens[low].count = 1;
+    le->tokens[low].weight = 10; le->tokens[low].level = level; 
+    le->tokens[low].role = 0; le->t_count++; 
+    return low; 
+}
 
 void ProcessSign(LogicEngine *le, unsigned char *name, int len) {
-    // Для первого запуска: просто разбиваем всё на одиночные знаки.
-    // Это позволит автомату собрать честную статистику по каждой скобке.
     for (int i = 0; i < len; i++) {
-        unsigned char one_char = name[i];       
-        // Добавляем каждый знак как отдельный токен.
-        // stack_ptr пока передаем как есть, позже он будет меняться здесь.
-        int idx = AddOrUpdateToken(le, &one_char, 1, le->ps.stack_ptr);
-        if (idx >= 0) { le->tokens[idx].role |= ROLE_OP; }
-    } }
+        unsigned char c = name[i];       
+        int idx = AddOrUpdateToken(le, &c, 1, le->ps.stack_ptr);
+        if (idx >= 0) le->tokens[idx].role = 4; // ROLE_OP
+    } 
+}
+
+// --- Ядро: Потоковый анализ ---
 
 void StepAnalysis(LogicEngine *le) {
     if (le->ps.read_ptr >= le->buffer_end) {
-        if (NextChunk(le)) { le->analysis = 0; return; } }
+        if (le->was_repaired) { SaveRepairedPart(le); le->was_repaired = 0; }
+        if (NextChunk(le)) return; 
+    }
+    
     int len, type, first_type, total_len = 0;
-    unsigned char *src = (unsigned char *)(le->buffer + le->ps.read_ptr);
-    unsigned char *dst = (unsigned char *)(le->buffer + le->ps.write_ptr);
-    if (le->ps.read_ptr >= le->buffer_end) { 
-        le->analysis = 0; if (le->was_repaired) { SaveRepairedPart(le); le->was_repaired = 0; } 
-        return; }
-    while (le->ps.read_ptr < le->buffer_end) { type = CharType(src, &len); 
+    unsigned char *src = FileBuf + le->ps.read_ptr;
+    unsigned char *dst = FileBuf + le->ps.write_ptr;
+
+    // Пропуск мусора и пробелов
+    while (le->ps.read_ptr < le->buffer_end) { 
+        type = CharType(src, &len); 
         if (type != 5 && type != 3) break;
-        le->ps.read_ptr += len; src += len; if (type == 5) le->was_repaired = 1;  }
+        if (type == 5) le->was_repaired = 1;
+        else { // Копируем пробельные в чистый поток
+            for (int i = 0; i < len; i++) *dst++ = *src++;
+            le->ps.write_ptr += len;
+        }
+        le->ps.read_ptr += len; src += len; 
+    }
+    
     if (le->ps.read_ptr >= le->buffer_end) return;
-    unsigned char *token_start = dst;
+    unsigned char *token_start = dst; // Токен берем из очищенного dst-потока
     first_type = type;
-    if (first_type == 4 && (*src == '-' || *src == '+')) { int next_len; int next_type = CharType(src + len, &next_len);
-        if (next_type == 1) first_type = 1; }
-    while (le->ps.read_ptr < le->buffer_end) { type = CharType(src, &len);
-        if (type == 5) { le->ps.read_ptr += len; src += len; le->was_repaired = 1; continue;  }
-        int should_collect = 0;
-        if (first_type == 1) {
-            if (type == 1 || type == 2) should_collect = 1;
-            else if (*src == '.') {  int nl; int nt = CharType(src + 1, &nl);
-                if (nt == 1 || nt == 2) should_collect = 1; }
-            else if (total_len > 0 && (*src == '-' || *src == '+')) { unsigned char prev = *(dst - 1);
-                if (prev == 'e' || prev == 'E') should_collect = 1; }
-            else if (total_len == 0 && (type == 4 && (*src == '-' || *src == '+'))) should_collect = 1; } 
-        else if (first_type == 2) { if (type == 2 || type == 1) should_collect = 1; }
-        else { if (type == first_type) should_collect = 1; }
-        if (!should_collect) break;
+    
+    if (first_type == 4 && (*src == '-' || *src == '+')) { 
+        int nl; if (le->ps.read_ptr + len < le->buffer_end) {
+            if (CharType(src + len, &nl) == 1) first_type = 1; 
+        }
+    }
+
+    while (le->ps.read_ptr < le->buffer_end) { 
+        type = CharType(src, &len);
+        if (type == 5) { le->was_repaired = 1; le->ps.read_ptr += len; src += len; continue; }
+        
+        int collect = 0;
+        if (first_type == 1) { // Число
+            if (type == 1 || type == 2) collect = 1;
+            else if (*src == '.') {
+                int nl; if (CharType(src + 1, &nl) == 1) collect = 1;
+            }
+            else if (total_len > 0 && (*src == '-' || *src == '+') && (*(src-1) == 'e' || *(src-1) == 'E')) collect = 1;
+            else if (total_len == 0 && type == 4) collect = 1;
+        } 
+        else if (first_type == 2) { if (type == 2 || type == 1) collect = 1; }
+        else { if (type == first_type) collect = 1; }
+        
+        if (!collect) break;
+        
         for (int i = 0; i < len; i++) *dst++ = *src++;
-        le->ps.read_ptr += len; total_len += len; }
+        le->ps.read_ptr += len; le->ps.write_ptr += len;
+        src += len; total_len += len; 
+    }
+
     if (total_len > 0) {
-        if (first_type == 1 || first_type == 2) AddOrUpdateToken(le, (char*)token_start, total_len, le->ps.stack_ptr);
-        else  ProcessSign(le, token_start, total_len);
-        le->ps.write_ptr += total_len; } }
+        if (first_type == 1 || first_type == 2) AddOrUpdateToken(le, token_start, total_len, le->ps.stack_ptr);
+        else ProcessSign(le, token_start, total_len);
+    }
+}
+
+// --- Интерфейс и Главный Цикл ---
+
+void HandleInput(LogicEngine *le, const char *key) { }
+void RenderScreen(LogicEngine *le) { }
 
 void HeartBeat(LogicEngine *le) {
     uint64_t start_analyze;
     while (1) {
         const char *key = GetKey(); 
-        if (key) {
-            if (key[0] == 27 && key[1] == 1 && key[2] == 0) break; 
-            HandleInput(le, key); RenderScreen(le); }
-        if (le->ps.parse_ptr < le->buffer_end) { start_analyze = os_get_ms();
-            while ((os_get_ms() - start_analyze) < ANALYZE_QUANTA) if (le->analysis) StepAnalysis(le);
-            if (!le->ready_to_help && le->t_count > 20) le->ready_to_help = 1; }
-        delay_ms(10); } }
+        if (key && key[0] == 27 && key[1] == 1 && key[2] == 0) break; 
+        
+        HandleInput(le, key); 
+        RenderScreen(le); 
+        
+        if (le->analysis) {
+            start_analyze = os_get_ms();
+            while ((os_get_ms() - start_analyze) < ANALYZE_QUANTA) {
+                StepAnalysis(le);
+                if (!le->analysis) break;
+            }
+        }
+        delay_ms(10); 
+    } 
+}
+
+// --- Входная точка ---
+
+int main(int argc, char *argv[]) {
+    LogicEngine le = {0}; // Весь автомат на стеке
+    
+    le.t_cap = 1024;
+    le.tokens = (Token_t*)os_malloc(le.t_cap * sizeof(Token_t));
+
+    // Твоя задумка
+    le.current_file = "test.c";
+    le.analysis = 1;
+
+    HeartBeat(&le);
+
+    // Очистка только динамического массива токенов
+    os_free(le.tokens);
+    return 0;
+}
