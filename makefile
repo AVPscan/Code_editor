@@ -29,7 +29,7 @@ else
 	GET_SIZE = stat -c%s $(TARGET)$(EXT)
 endif
 
-SOURCES = products.c $(SYS_SRC)
+SOURCES = editor.c $(SYS_SRC)
 
 BASE_CFLAGS = -std=c11 -Os -DNDEBUG -Wall -Wextra
 
