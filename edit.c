@@ -257,18 +257,10 @@ void HeartBeat(LogicEngine *le) {
 // --- Входная точка ---
 
 int main(int argc, char *argv[]) {
-    LogicEngine le = {0}; // Весь автомат на стеке
-    
-    le.t_cap = 1024;
-    le.tokens = (Token_t*)os_malloc(le.t_cap * sizeof(Token_t));
-
-    // Твоя задумка
+    LogicEngine le = {0};
     le.current_file = "test.c";
     le.analysis = 1;
-
     HeartBeat(&le);
-
-    // Очистка только динамического массива токенов
     os_free(le.tokens);
     return 0;
 }
