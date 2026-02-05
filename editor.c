@@ -18,7 +18,7 @@ int main() {
     delay_ms(60);
     const char* k = GetKey();
     if (k[0] == 27 && k[1] == K_NOP) continue;
-    if (k[0] != 27) printf ( Cna Lcur "%s    ", k);
+    if (k[0] != 27) printf (Cna Lcur "%s    ", k);
     else printf (Cnu Lcur "%d    ", k[1]);
     if (k[0] == 27 && k[1] == K_ESC) break; }
   SetInputMode(0); printf(ShCur Cce); fflush(stdout);
