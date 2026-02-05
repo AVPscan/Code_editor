@@ -76,6 +76,4 @@ void  delay_ms(int ms);
 void  SetInputMode(int raw);
 const char* GetKey(void);
 /*___________________________________________________________________________*/
-int AutoEncryptOrValidate(const char *fname);
-int SendMailSecure(const char *fname, const char *target);
 #endif /* SYS_H */
