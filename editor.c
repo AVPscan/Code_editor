@@ -18,8 +18,8 @@ int main() {
     delay_ms(60);
     const char* k = GetKey();
     if (k[0] == 27 && k[1] == K_NOP) continue;
-    if (k[0] != 27) printf ("%s%s%s    ", Cna, Lcur, k);
-    else printf ("%s%s%d    ", Cnu, Lcur, k[1]);
+    if (k[0] != 27) printf ("%s%s%s    ", Cna, LСur, k);
+    else printf ("%s%s%d    ", Cnu, LСur, k[1]);
     if (k[0] == 27 && k[1] == K_ESC) break; }
   SetInputMode(0); printf(ShCur Cce); fflush(stdout);
   return 0; }
