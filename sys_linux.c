@@ -146,5 +146,6 @@ const char* GetKey(void) {
     for (int j = 0; j < (int)(sizeof(nameid)/sizeof(KeyIDMap)); j++) {
         const char *s1 = p, *s2 = nameid[j].name;
         while (*s1 && *s1 == *s2) { s1++; s2++; }
-        if (*s1 == '\0' && *s2 == '\0') { *p++ = nameid[j].id; *p = 0; return b; } } }
+        if (*s1 == '\0' && *s2 == '\0') { *p++ = nameid[j].id; *p = 0;} } 
+    return b; }
 /*___________________________________________________________________________*/
