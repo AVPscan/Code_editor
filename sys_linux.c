@@ -107,9 +107,9 @@ void SWD(void) {
     ssize_t len = readlink("/proc/self/exe", path, DBuf - 1);
     if (len <= 0) return;
     path[len] = '\0';
-    if (strncmp(path, "/nix/store", 10) == 0) { const char *home = getenv("HOME"); if (home != NULL) (void)chdir(home);
+    if (strncmp(path, "/nix/store", 10) == 0) { const char *home = getenv("HOME"); if (home != NULL) chdir(home);
                                                 return; }
-    for (char *p = path + len; p > path; p--) if (*p == '/') { *p = '\0'; (void)chdir(path); break; } }
+    for (char *p = path + len; p > path; p--) if (*p == '/') { *p = '\0'; chdir(path); break; } }
 
 void SetInputMode(int raw) {
     static struct termios oldt;
@@ -136,14 +136,12 @@ const char* GetKey(void) {
     unsigned char c = *(unsigned char*)p;
     if (c > 127) {
         int len = (c >= 0xF0) ? 4 : (c >= 0xE0) ? 3 : (c >= 0xC0) ? 2 : 1;
-        while (--len > 0) (void)read(0, ++p, 1);
-        return b; }
-    if (c > 32 && c < 127 ) return b;
-    *p++ = 27; *p = c; if (c == 127) *p = K_BAC;
-    if (c == 27) { int i = 0; while (i < 4 && read(0, p + i, 1) > 0) i++;
-        if (i == 0) return b;
-        for (int j = 0; j < (int)(sizeof(nameid)/sizeof(KeyIDMap)); j++) {
-            const char *s1 = p, *s2 = nameid[j].name;
-            while (*s1 && *s1 == *s2) { s1++; s2++; }
-            if (*s1 == '\0' && *s2 == '\0') { *p++ = nameid[j].id; *p = 0;} } }
+        while (--len > 0) read(0, ++p, 1); }
+    else if (c < 33 || c == 127) { *p++ = 27; *p = c;
+              if (c == 27) { int i = 0; while (i < 4 && read(0, p + i, 1) > 0) i++;
+                  if (i > 0) { for (int j = 0; j < (int)(sizeof(nameid)/sizeof(KeyIDMap)); j++) {
+                      const char *s1 = p, *s2 = nameid[j].name; while (*s1 && *s1 == *s2) { s1++; s2++; }
+                      if (*s1 == '\0' && *s2 == '\0') { *p++ = nameid[j].id; *p = 0;} }
+                  } } }
     return b; }
+
