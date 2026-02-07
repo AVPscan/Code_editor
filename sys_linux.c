@@ -20,98 +20,33 @@
 #include <stdint.h>
 #include <sys/mman.h>
 #include <stddef.h>
+#include <sys/ioctl.h>
 #include "sys.h"
 
-//#define USE_BW
-#define USE_RGB
-
-#ifdef USE_BW
-  #define Cnn ""
-  #define Cna ""
-  #define Cpr ""
-  #define Cnu ""
-  #define Cap ""
-  #define Cam ""
-#else
-  #ifdef USE_RGB
-    #define Cnn "\033[38;2;120;120;120m"
-    #define Cna "\033[38;2;210;105;30m"
-    #define Cpr "\033[38;2;184;134;11m"
-    #define Cnu "\033[38;2;30;144;255m"
-    #define Cap "\033[38;2;34;139;34m"
-    #define Cam "\033[38;2;220;20;60m"
-  #else // обычные
-    #define Cnn "\033[38;5;244m" // Номер (Серый)
-    #define Cna "\033[38;5;166m" // Имя (Оранжевый)
-    #define Cpr "\033[38;5;178m" // Цена (Золотистый) — хорошо выделяется
-    #define Cnu "\033[38;5;27m"  // Число (Синий)
-    #define Cap "\033[38;5;28m"  // Рост/Плюс (Темно-зеленый)
-    #define Cam "\033[38;5;160m" // Падение/Минус (Красный)
-  #endif
-#endif
-
-#define Crs   "\033[0m"
-#define HCur  "\033[?25l"
-#define ShCur "\033[?25h"
-#define Cls   "\033[2J\033[H"
-#define SCur  "\033[s"
-#define LCur  "\033[u"
-#define Cce   "\033[K"
-
-#define DBuf 4096
-#define NBuf 1024
 #define RING_BUF_SLOTS 16
 #define RING_BUF_SLOT_SIZE 128
 
 void* os_open_file(const char* name) { return (void*)fopen(name, "rb"); }
 void* os_create_file(const char* name) { return (void*)fopen(name, "wb"); }
 void  os_close_file(void* handle) { if (handle) fclose((FILE*)handle); }
-int   os_read_file(void* handle, unsigned char* buf, int len) {
-    if (!handle) return 0;
+int   os_read_file(void* handle, unsigned char* buf, int len) { if (!handle) return 0;
     return (int)fread(buf, 1, len, (FILE*)handle); }
-int   os_read_file_at(void* handle, long offset, unsigned char* buf, int len) {
-    if (!handle) return 0;
-    FILE* f = (FILE*)handle;
-    if (fseek(f, offset, SEEK_SET) != 0) return 0;
+int   os_read_file_at(void* handle, long offset, unsigned char* buf, int len) { if (!handle) return 0;
+    FILE* f = (FILE*)handle; if (fseek(f, offset, SEEK_SET) != 0) return 0;
     return (int)fread(buf, 1, len, f); }
 void* os_malloc(size_t size) { return malloc(size); }
 void* os_realloc(void* ptr, size_t size) { return realloc(ptr, size); }
 void  os_free(void* ptr) { free(ptr); }
 void  os_memset(void* ptr, int val, size_t size) { memset(ptr, val, size); }
-char* os_strdup(const char* s) {
-    if (!s) return NULL;
-    size_t len = strlen(s) + 1;
-    char* d = (char*)os_malloc(len);
-    if (d) memcpy(d, s, len);
+char* os_strdup(const char* s) { if (!s) return NULL;
+    size_t len = strlen(s) + 1; char* d = (char*)os_malloc(len); if (d) memcpy(d, s, len);
     return d; }
-int   os_print_file(void* handle, const char* format, ...) {
-    if (!handle) return 0;
-    va_list args;
-    va_start(args, format);
-    int res = vfprintf((FILE*)handle, format, args);
-    va_end(args);
-    return res; }
+int   os_print_file(void* handle, const char* format, ...) { if (!handle) return 0;
+    va_list args; va_start(args, format); int res = vfprintf((FILE*)handle, format, args); va_end(args); return res; }
 int   os_snprintf(char* buf, size_t size, const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    int res = vsnprintf(buf, size, format, args);
-    va_end(args);
-    return res; }
+    va_list args; va_start(args, format); int res = vsnprintf(buf, size, format, args); va_end(args); return res; }
 void   os_printf(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    vprintf(format, args);
-    va_end(args); }
-
-unsigned char FileBuf[DBuf+NBuf];
-void SWD(void) {
-    char *path = (char *)FileBuf;
-    ssize_t len = readlink("/proc/self/exe", path, DBuf - 1);
-    if (len <= 0) return;
-    path[len] = '\0';
-    if (strncmp(path, "/nix/store", 10) == 0) { const char *home = getenv("HOME"); if (home != NULL) chdir(home);
-                                                return; }
-    for (char *p = path + len; p > path; p--) if (*p == '/') { *p = '\0'; chdir(path); break; } }
+    va_list args; va_start(args, format); vprintf(format, args); va_end(args); }
 
 void SetInputMode(int raw) {
     static struct termios oldt;
@@ -173,9 +108,18 @@ size_t GetBuff(size_t *size) {
 void FreeBuff(void) {
     if (GlobalBuf) { munmap((void*)GlobalBuf, GlobalLen); GlobalBuf = 0; GlobalLen = 0; } }
 
+void SWD(void) { if (!GlobalBuf) return;
+    char *path = (char *)GlobalBuf;
+    ssize_t len = readlink("/proc/self/exe", path, 1024);
+    if (len <= 0) return;
+    path[len] = '\0'; if (strncmp(path, "/nix/store", 10) == 0) {
+                          const char *home = getenv("HOME"); if (home != NULL) chdir(home);
+                          return; }
+    for (char *p = path + len; p > path; p--) if (*p == '/') { *p = '\0'; chdir(path); break; } }
+    
 char *GetBuf(void) {
     static int idx = 0; idx = (idx + 1) & (RING_BUF_SLOTS - 1); 
-    return (char*)FileBuf + (idx * RING_BUF_SLOT_SIZE); }
+    return (char*)GlobalBuf + (idx * RING_BUF_SLOT_SIZE); }
     
 const char *Button(const char *label, int active) {
     char *b = GetBuf();
@@ -189,17 +133,13 @@ uint64_t get_cycles(void) {
     return t.total; }
 
 void delay_ms(int ms) {
-    static uint64_t cpu_hz = 0; if (cpu_hz == 0) {
-        struct timespec ts = {0, 10000000L}; uint64_t start = get_cycles();
-        nanosleep(&ts, NULL); cpu_hz = (get_cycles() - start) * 100;
-        if (cpu_hz == 0) cpu_hz = 1; }
-    uint64_t total_cycles = (uint64_t)ms * (cpu_hz / 1000);
-    uint64_t start_time = get_cycles();
-    if (ms > 2) { struct timespec sleep_ts = {0, (ms - 1) * 1000000L};
-        nanosleep(&sleep_ts, NULL); }
-    struct timespec check_start; clock_gettime(CLOCK_MONOTONIC_COARSE, &check_start);
-    uint32_t safety = 0; while ((get_cycles() - start_time) < total_cycles) {
-        __asm__ volatile("pause"); if (++safety > 2000) {
-            struct timespec now; clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
-            if (now.tv_sec > check_start.tv_sec) { cpu_hz = 0; break; }
-            safety = 0; } } }
+    static uint64_t cpu_hz = 0;
+    if (cpu_hz == 0) { struct timespec ts = {0, 10000000L}; uint64_t start = get_cycles();
+        nanosleep(&ts, NULL); cpu_hz = (get_cycles() - start) * 100; if (cpu_hz == 0) cpu_hz = 1; }
+    uint64_t total_cycles = (uint64_t)ms * (cpu_hz / 1000); uint64_t start_time = get_cycles();
+    if (ms > 2) { struct timespec sleep_ts = {0, (ms - 1) * 1000000L}; nanosleep(&sleep_ts, NULL); }
+    struct timespec check_start; clock_gettime(CLOCK_MONOTONIC_COARSE, &check_start); uint32_t safety = 0;
+    while ((get_cycles() - start_time) < total_cycles) { __asm__ volatile("pause");
+        if (++safety > 2000) { struct timespec now; clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
+                               if (now.tv_sec > check_start.tv_sec) { cpu_hz = 0; break; }
+                               safety = 0; } } }

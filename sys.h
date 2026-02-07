@@ -10,12 +10,6 @@
 #ifndef SYS_H
 #define SYS_H
 
-#ifdef _WIN32
-    #include <windows.h>
-#else
-    #include <sys/ioctl.h>
-#endif
-
 #include <stddef.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -56,18 +50,13 @@
 #define LCur  "\033[u"
 #define Cce   "\033[K"
 
-#define DBuf 4096
-#define NBuf 1024
-#define RING_BUF_SLOTS 16
-#define RING_BUF_SLOT_SIZE 128
-
 typedef struct {
     int w, h;       // Ширина и высота в символах (cols, rows)
     int ratio;      // Целочисленный коэффициент пропорций (H * 100 / W)
     int pw, ph;     // Виртуальные пиксели (для Брайля: 2x4)
 } TermState;
 extern TermState TS;
-extern unsigned char FileBuf[DBuf+NBuf];
+
 enum {
     K_NO,
     K_CRA, K_CRB, K_CRC, K_CRD, K_CRE, K_CRF, K_CRG, 
@@ -90,17 +79,19 @@ void  os_memset(void* ptr, int val, size_t size);
 char* os_strdup(const char* s);
 void  os_printf(const char* format, ...);
 int   os_snprintf(char* buf, size_t size, const char* format, ...);
-void SWD(void);
 
 void  SetInputMode(int raw);
 const char* GetKey(void);
 
 size_t GetBuff(size_t *size);
 void FreeBuff(void);
+
+void SWD(void);
+
 int os_sync_size(void);
 char *GetBuf(void);
 const char *Button(const char *label, int active);
 uint64_t get_cycles(void);
 void  delay_ms(int ms);
-#endif /* SYS_H */
 
+#endif /* SYS_H */
