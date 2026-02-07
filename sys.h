@@ -50,13 +50,6 @@
 #define LCur  "\033[u"
 #define Cce   "\033[K"
 
-typedef struct {
-    int w, h;       // Ширина и высота в символах (cols, rows)
-    int ratio;      // Целочисленный коэффициент пропорций (H * 100 / W)
-    int pw, ph;     // Виртуальные пиксели (для Брайля: 2x4)
-} TermState;
-extern TermState TS;
-
 enum {
     K_NO,
     K_CRA, K_CRB, K_CRC, K_CRD, K_CRE, K_CRF, K_CRG, 
@@ -89,6 +82,7 @@ void FreeBuff(void);
 void SWD(void);
 
 int os_sync_size(void);
+int GetWH(int *h);
 char *GetBuf(void);
 const char *Button(const char *label, int active);
 uint64_t get_cycles(void);

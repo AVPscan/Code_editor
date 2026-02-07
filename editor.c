@@ -12,7 +12,7 @@
 #include "sys.h"
 
 int main() {
-  size_t sz = 2048;
+  size_t sz = 2048; int w,h;
   if (!GetBuff(&sz)) return 0;
   SWD(); os_sync_size(); delay_ms(0); int mode = 0;
   SetInputMode(1); printf(HCur SCur); fflush(stdout);
@@ -25,10 +25,10 @@ int main() {
                  (real_end.tv_nsec - real_start.tv_nsec) / 1000000.0;
     const char* k = GetKey();
     if (k[0] == 27 && k[1] == K_NO) continue;
-    os_sync_size();
+    os_sync_size(); w = GetWH(&h);
     if (k[0] == 'p') mode = (mode + 1) & 1;
-    if (k[0] != 27) printf (LCur Cam "%d %d" Cna " тоси%sбоси " Cap "%s", TS.w, TS.h, Button("Погнали",mode), k);
-    else printf (LCur Cam "%d %d" Cna " тоси%sбоси " Cap "(%d)", TS.w, TS.h, Button("Погнали",mode), k[1]);
+    if (k[0] != 27) printf (LCur Cam "%d %d" Cna " тоси%sбоси " Cap "%s", w, h, Button("Погнали",mode), k);
+    else printf (LCur Cam "%d %d" Cna " тоси%sбоси " Cap "(%d)", w, h, Button("Погнали",mode), k[1]);
     printf(" [Ms: %f]       ", real_ms); fflush(stdout); if (k[0] == 27 && k[1] == K_ESC) break; }
   SetInputMode(0); printf(ShCur Crs); fflush(stdout); return 0; }
 

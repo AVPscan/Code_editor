@@ -88,7 +88,12 @@ const char* GetKey(void) {
         if (*p != 0) b[1] = 0; }
     return (char*)b; }
 
-TermState TS = {0};
+typedef struct {
+    int w, h;       // Ширина и высота в символах (cols, rows)
+    int ratio;      // Целочисленный коэффициент пропорций (H * 100 / W)
+    int pw, ph;     // Виртуальные пиксели (для Брайля: 2x4)
+} TermState;
+static TermState TS = {0};
 int os_sync_size(void) {
     struct winsize ws;
     if (ioctl(0, TIOCGWINSZ, &ws) < 0) return 0;
@@ -97,6 +102,7 @@ int os_sync_size(void) {
         TS.ratio = (TS.w > 0) ? (TS.h * 100) / TS.w : 0;
         TS.pw = TS.w * 2; TS.ph = TS.h * 4; return 1; }
     return 0; }
+int GetWH(int *h) { *h = TS.h; return TS.w; }
 
 static size_t GlobalBuf = 0, GlobalLen = 0;
 size_t GetBuff(size_t *size) {
@@ -143,3 +149,11 @@ void delay_ms(int ms) {
         if (++safety > 2000) { struct timespec now; clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
                                if (now.tv_sec > check_start.tv_sec) { cpu_hz = 0; break; }
                                safety = 0; } } }
+
+typedef struct {          // задел на потом))
+    int x, y, w, h;       // Положение окна на экране
+    int curX, curY;       // Положение курсора внутри данных (в файле)
+    int viewX, viewY;     // Смещение "камеры" относительно данных
+    size_t dataPtr;       // Смещение в GlobalBuf, где лежат данные этого окна
+    uint32_t flags;       // Тип: скроллбары, рамки, активное/пассивное
+} TUI_Window;
