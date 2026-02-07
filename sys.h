@@ -96,7 +96,7 @@ void  SetInputMode(int raw);
 const char* GetKey(void);
 
 size_t GetBuff(size_t *size);
-void FreeBuff(size_t ptr, size_t size);
+void FreeBuff(void);
 int os_sync_size(void);
 char *GetBuf(void);
 const char *Button(const char *label, int active);
