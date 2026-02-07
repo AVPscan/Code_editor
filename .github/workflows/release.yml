@@ -38,14 +38,14 @@ jobs:
       - name: Check binary status
         run: |
           # 'file' покажет "statically linked", 'ldd' покажет "not a dynamic executable"
-          file products
-          ldd products || echo "✅ Статус: Statically linked"
+          file editor
+          ldd editor || echo "✅ Статус: Statically linked"
           
       - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-executable
-          path: products
+          path: editor
 
   # Задача 4: Создание релиза и прикрепление артефактов
   create-release:
