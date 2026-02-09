@@ -49,6 +49,7 @@
 #define SCur  "\033[s"
 #define LCur  "\033[u"
 #define Cce   "\033[K"
+#define Cha   "\033[G"
 
 enum {
     K_NO,
@@ -78,6 +79,7 @@ const char* GetKey(void);
 
 size_t GetBuff(size_t *size);
 void FreeBuff(void);
+int GetC(void);
 
 void SWD(void);
 
