@@ -34,7 +34,6 @@ int   os_read_file(void* handle, unsigned char* buf, int len) { if (!handle) ret
 int   os_read_file_at(void* handle, long offset, unsigned char* buf, int len) { if (!handle) return 0;
     FILE* f = (FILE*)handle; if (fseek(f, offset, SEEK_SET) != 0) return 0;
     return (int)fread(buf, 1, len, f); }
-void  os_memset(void* ptr, int val, size_t size) { memset(ptr, val, size); }
 int   os_print_file(void* handle, const char* format, ...) { if (!handle) return 0;
     va_list args; va_start(args, format); int res = vfprintf((FILE*)handle, format, args); va_end(args); return res; }
 int   os_snprintf(char* buf, size_t size, const char* format, ...) {
@@ -61,10 +60,10 @@ KeyIDMap nameid[] = {
     {"[15~", K_F5}, {"[17~", K_F6}, {"[18~", K_F7}, {"[19~", K_F8},
     {"[20~", K_F9}, {"[21~", K_F10}, {"[23~", K_F11}, {"[24~", K_F12} };
 const char* GetKey(void) {
-    static unsigned char b[6]; unsigned char *p = b;
-    os_memset(b, 0, sizeof(b));
+    static unsigned char b[6]; unsigned char *p = b; int len = 0;
+    while (len < 6) { b[len] = 0; len++; }
     if (read(0, p, 1) <= 0) { *p =27; return (char*)b; }
-    unsigned char c = *p; int len;
+    unsigned char c = *p;
     if (c > 127) {
         len = (c >= 0xF0) ? 4 : (c >= 0xE0) ? 3 : (c >= 0xC0) ? 2 : 1;
         while (--len > 0) read(0, ++p, 1);
