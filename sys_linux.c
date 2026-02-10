@@ -8,15 +8,15 @@
  */
  
 #define _POSIX_C_SOURCE 200809L
-#include <stdio.h>      // Для fopen, fread, vfprintf, FILE
-#include <stdlib.h>     // Для malloc, realloc, free
-#include <string.h>     // Для strlen, memset, memcpy
-#include <stdarg.h>     // Для va_list, va_start
-#include <time.h>       // Для nanosleep
-#include <sys/time.h>   // Для gettimeofday
-#include <termios.h>    // Для tcgetattr
-#include <fcntl.h>      // Для fcntl
-#include <unistd.h>     // Для read, close
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdarg.h>
+#include <time.h>
+#include <sys/time.h>
+#include <termios.h>
+#include <fcntl.h>   
+#include <unistd.h>     
 #include <stdint.h>
 #include <sys/mman.h>
 #include <stddef.h>
@@ -34,13 +34,7 @@ int   os_read_file(void* handle, unsigned char* buf, int len) { if (!handle) ret
 int   os_read_file_at(void* handle, long offset, unsigned char* buf, int len) { if (!handle) return 0;
     FILE* f = (FILE*)handle; if (fseek(f, offset, SEEK_SET) != 0) return 0;
     return (int)fread(buf, 1, len, f); }
-void* os_malloc(size_t size) { return malloc(size); }
-void* os_realloc(void* ptr, size_t size) { return realloc(ptr, size); }
-void  os_free(void* ptr) { free(ptr); }
 void  os_memset(void* ptr, int val, size_t size) { memset(ptr, val, size); }
-char* os_strdup(const char* s) { if (!s) return NULL;
-    size_t len = strlen(s) + 1; char* d = (char*)os_malloc(len); if (d) memcpy(d, s, len);
-    return d; }
 int   os_print_file(void* handle, const char* format, ...) { if (!handle) return 0;
     va_list args; va_start(args, format); int res = vfprintf((FILE*)handle, format, args); va_end(args); return res; }
 int   os_snprintf(char* buf, size_t size, const char* format, ...) {

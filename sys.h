@@ -66,11 +66,7 @@ void  os_close_file(void* handle);
 int   os_read_file(void* handle, unsigned char* buf, int len);
 int   os_read_file_at(void* handle, long offset, unsigned char* buf, int len);
 int   os_print_file(void* handle, const char* format, ...);
-void* os_malloc(size_t size);
-void* os_realloc(void* ptr, size_t size);
-void  os_free(void* ptr);
 void  os_memset(void* ptr, int val, size_t size);
-char* os_strdup(const char* s);
 void  os_printf(const char* format, ...);
 int   os_snprintf(char* buf, size_t size, const char* format, ...);
 
