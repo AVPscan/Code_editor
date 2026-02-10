@@ -11,7 +11,6 @@
 #define SYS_H
 
 #include <stddef.h>
-#include <stdarg.h>
 #include <stdint.h>
 
 //#define USE_BW
