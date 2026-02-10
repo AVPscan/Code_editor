@@ -38,8 +38,7 @@ int   os_snprintf(char* buf, size_t size, const char* format, ...) {
     va_list args; va_start(args, format); int res = vsnprintf(buf, size, format, args); va_end(args); return res; }
 void   os_printf(const char* format, ...) {
     va_list args; va_start(args, format); vprintf(format, args); va_end(args); }
-void os_memset(void* buf, int val, size_t len) {
-    if (len == 0) return;
+void os_memset(void* buf, int val, size_t len) { if (len == 0) return;
     uint8_t *p = (uint8_t *)buf; uint8_t v = (uint8_t)val; const size_t word_size = sizeof(uintptr_t);
     while (((uintptr_t)p & (word_size - 1)) && len > 0) { *p++ = v; len--; }
     if (len >= word_size) {
