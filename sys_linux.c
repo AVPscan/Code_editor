@@ -38,17 +38,23 @@ int   os_snprintf(char* buf, size_t size, const char* format, ...) {
     va_list args; va_start(args, format); int res = vsnprintf(buf, size, format, args); va_end(args); return res; }
 void   os_printf(const char* format, ...) {
     va_list args; va_start(args, format); vprintf(format, args); va_end(args); }
+void os_memset(void* buf, int val, size_t len) {
+    if (len == 0) return;
+    uint8_t *p = (uint8_t *)buf; uint8_t v = (uint8_t)val; const size_t word_size = sizeof(uintptr_t);
+    while (((uintptr_t)p & (word_size - 1)) && len > 0) { *p++ = v; len--; }
+    if (len >= word_size) {
+        uintptr_t vW = v; for (size_t i = 1; i < word_size; i <<= 1) vW |= (vW << (i * 8));
+        uintptr_t *pW = (uintptr_t *)p; size_t countW = len / word_size;for (size_t i = 0; i < countW; i++) pW[i] = vW;
+        p = (uint8_t *)(pW + countW); len %= word_size; }
+    while (len--) *p++ = v; }
 
 void SetInputMode(int raw) {
     static struct termios oldt;
     if (raw) {
-        tcgetattr(0, &oldt);
-        struct termios newt = oldt;
-        newt.c_lflag &= ~(ICANON | ECHO | ISIG);
-        tcsetattr(0, TCSANOW, &newt);
-        fcntl(0, F_SETFL, O_NONBLOCK); } 
-    else { tcsetattr(0, TCSANOW, &oldt);
-        fcntl(0, F_SETFL, 0); } } 
+        tcgetattr(0, &oldt); struct termios newt = oldt; newt.c_lflag &= ~(ICANON | ECHO | ISIG);
+        tcsetattr(0, TCSANOW, &newt); fcntl(0, F_SETFL, O_NONBLOCK); } 
+    else { tcsetattr(0, TCSANOW, &oldt); fcntl(0, F_SETFL, 0); } }
+
 typedef struct { const char *name; unsigned char id; } KeyIDMap;
 KeyIDMap nameid[] = {
     {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
@@ -57,20 +63,17 @@ KeyIDMap nameid[] = {
     {"OP", K_F1}, {"OQ", K_F2}, {"OR", K_F3}, {"OS", K_F4},
     {"[15~", K_F5}, {"[17~", K_F6}, {"[18~", K_F7}, {"[19~", K_F8},
     {"[20~", K_F9}, {"[21~", K_F10}, {"[23~", K_F11}, {"[24~", K_F12} };
+
 const char* GetKey(void) {
-    static unsigned char b[6]; unsigned char *p = b; int len = 0;
-    while (len < 6) { b[len] = 0; len++; }
+    static unsigned char b[6]; unsigned char *p = b; int len = 0; while (len < 6) { b[len] = 0; len++; }
     if (read(0, p, 1) <= 0) { *p =27; return (char*)b; }
-    unsigned char c = *p;
-    if (c > 127) {
+    unsigned char c = *p; if (c > 127) {
         len = (c >= 0xF0) ? 4 : (c >= 0xE0) ? 3 : (c >= 0xC0) ? 2 : 1;
         while (--len > 0) read(0, ++p, 1);
         return (char*)b; }
     if (c > 32 && c < 127) return (char*)b; 
-    *p++ = 27; *p = c;
-    if (c != 27) return (char*)b; 
-    const unsigned char *s1,*s2;
-    if (read(0, p, 1) > 0) { 
+    *p++ = 27; *p = c; if (c != 27) return (char*)b; 
+    const unsigned char *s1,*s2; if (read(0, p, 1) > 0) { 
         if (*p < 32 || (*p != '[' && *p != 'O')) { *p = 0; return (char*)b; }
         s1 = p; len = 4; while (--len > 0 && read(0, (unsigned char*)++s1, 1) > 0);
         for (int j = 0; j < (int)(sizeof(nameid)/sizeof(KeyIDMap)); j++) { s1 = p; s2 = (const unsigned char*)nameid[j].name;
@@ -85,6 +88,7 @@ typedef struct {
     int pw, ph;     // Виртуальные пиксели (для Брайля: 2x4)
 } TermState;
 static TermState TS = {0};
+
 int os_sync_size(void) {
     struct winsize ws;
     if (ioctl(0, TIOCGWINSZ, &ws) < 0) return 0;
@@ -101,11 +105,12 @@ size_t GetBuff(size_t *size) {
     void *ptr = mmap(0, GlobalLen, 3, 34, -1, 0);     // Прямой системный вызов: 3 = READ|WRITE, 34 = PRIVATE|ANONYMOUS
     if (ptr == (void*)-1) { GlobalBuf = 0; GlobalLen = 0; return 0; }
     GlobalBuf = (size_t)ptr; *size = GlobalLen; return GlobalBuf; }
+
 void FreeBuff(void) {
     if (GlobalBuf) { munmap((void*)GlobalBuf, GlobalLen); GlobalBuf = 0; GlobalLen = 0; } }
 
 int GetC(void) { if (!GlobalBuf || !TS.w) return 1;
-    struct timespec cs, ce; char *p = (char *)GlobalBuf; memset(p, ' ', TS.w - 1); p[TS.w - 1] = '\r';
+    struct timespec cs, ce; char *p = (char *)GlobalBuf; os_memset(p, ' ', TS.w - 1); p[TS.w - 1] = '\r';
     clock_gettime(CLOCK_MONOTONIC, &cs);
     for(int i = 0; i < 100; i++) write(1, p, TS.w);
     clock_gettime(CLOCK_MONOTONIC, &ce); 
