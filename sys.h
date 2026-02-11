@@ -51,6 +51,11 @@
 #define GLOBAL_LINE_SIZE    GLOBAL_SIZE_STR * 6
 #define GLOBAL_SIZE         GLOBAL_DATA_SIZE * 6 + GLOBAL_LINE_SIZE
 
+#define GET_BLINE(row)      (G_DATA + ((size_t)(row) << 13))
+#define GET_DLINE(row)      (G_LINE + (((size_t)(row) << 1)+(size_t)(row)) << 1)
+#define GET_ATTR(row,col)   (G_ATTRIBUTE + ((size_t)(row) << 13)) + (size_t)col
+#define GET_TOKEN(row,col)  ((G_TOKENS + ((size_t)(row) << 13)) + (size_t)(col)<<2)
+
 #define Crs   "\033[0m"
 #define HCur  "\033[?25l"
 #define ShCur "\033[?25h"
