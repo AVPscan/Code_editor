@@ -150,3 +150,33 @@ void delay_ms(int ms) {
         if (++safety > 2000) { struct timespec now; clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
                                if (now.tv_sec > check_start.tv_sec) { cpu_hz = 0; break; }
                                safety = 0; } } }
+
+typedef uintptr_t Cell;
+#define SYSTEM_SECTOR_SIZE  0
+#define GLOBAL_SIZE_STR     8192
+#define GLOBAL_STRING       2048
+#define GLOBAL_DATA_SIZE    (GLOBAL_SIZE_STR * GLOBAL_STRING)
+#define GLOBAL_ATTR_SIZE    (GLOBAL_SIZE_STR * GLOBAL_STRING)
+#define GLOBAL_TOKEN_SIZE   (GLOBAL_SIZE_STR * GLOBAL_STRING) * 4
+#define GLOBAL_LINE_SIZE    GLOBAL_SIZE_STR * 6
+#define GLOBAL_SIZE         GLOBAL_DATA_SIZE * 6 + GLOBAL_LINE_SIZE
+#define CELL_SIZE           sizeof(Cell)
+static const Cell DIRTY_MASK = (Cell)0x8181818181818181ULL & (Cell)-1;
+inline int is_cell_dirty(const void *ptr) { return (*(const Cell *)ptr & DIRTY_MASK) != 0; }
+typedef struct {
+    uint16_t len;                                               // длина в байтах токена
+    uint16_t visual;                                            // визуальная ширина в ячейках терминала токена
+} Token;
+typedef struct {
+    uint16_t len;                                               // Текущая длина в байтах строки
+    uint16_t count;                                             // Текущее кол-во токенов в стороке
+    uint16_t visual;                                            // Общая визуальная ширина строки
+} LineData;
+char *G_DATA = (char*)(GlobalBuf + SYSTEM_SECTOR_SIZE);         // Данные (байты)
+char *G_ATTRIBUTE = (char*)(G_DATA + GLOBAL_DATA_SIZE);         // цвет, жирность.. аттрибут изменения токена x081
+Token *G_TOKENS = (Token*)(G_ATTRIBUTE + GLOBAL_ATTR_SIZE);     // Метаданные (атомы) в строке
+SmartLine *G_LINE = (LineData*)(G_TOKENS + GLOBAL_TOKEN_SIZE);  // Строки
+#define GET_BLINE(row)      (G_DATA + ((size_t)(row) << 13))
+#define GET_DLINE(row)      (G_LINE + (((size_t)(row) << 1)+(size_t)(row)) << 1)
+#define GET_ATTR(row,col)   (G_ATTRIBUTE + ((size_t)(row) << 13)) + (size_t)col
+#define GET_TOKEN(row,col)  ((G_TOKENS + ((size_t)(row) << 13)) + (size_t)(col)<<2)
