@@ -99,7 +99,7 @@ int os_sync_size(void) {
 int GetWH(int *h) { *h = TS.h; return TS.w; }
 
 static size_t GlobalBuf = 0, GlobalLen = 0;
-size_t GetVram(void) {
+size_t GetVram(size_t *size) {
     GlobalLen = (GLOBAL_SIZE + 4096 + 0xFFF) & ~0xFFF;
      void *ptr = mmap(0, GlobalLen, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (ptr == (void*)-1) { GlobalBuf = 0; GlobalLen = 0; return 0; }
