@@ -34,8 +34,8 @@ void help() {
 int main(int argc, char *argv[]) {
   if (argc > 1) { if (strcmp(argv[1], "-?") == 0 || strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "-help") == 0) help();
                   return 0; }
-  int w = 0, h = 0, s = 0, mode = 0; size_t sz; double real_ms; struct timespec real_start, real_end;
-  if (!(size_t Vram = GetVram(&sz))) return 0;
+  int w = 0, h = 0, s = 0, mode = 0; size_t sz, Vram; double real_ms; struct timespec real_start, real_end;
+  if (!(Vram = GetVram(&sz))) return 0;
   char *G_DATA = (char*)(Vram + SYSTEM_SECTOR_SIZE);            // Данные (байты)
   char *G_ATTRIBUTE = (char*)(G_DATA + GLOBAL_DATA_SIZE);       // цвет, жирность.. аттрибут изменения токена x081
   Token *G_TOKENS = (Token*)(G_ATTRIBUTE + GLOBAL_ATTR_SIZE);   // Метаданные (атомы) в строке
