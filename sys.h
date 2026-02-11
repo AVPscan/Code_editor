@@ -41,6 +41,16 @@
   #endif
 #endif
 
+#define CELL_SIZE sizeof(uintptr_t)
+#define SYSTEM_SECTOR_SIZE  0
+#define GLOBAL_SIZE_STR     8192
+#define GLOBAL_STRING       2048
+#define GLOBAL_DATA_SIZE    (GLOBAL_SIZE_STR * GLOBAL_STRING)
+#define GLOBAL_ATTR_SIZE    (GLOBAL_SIZE_STR * GLOBAL_STRING)
+#define GLOBAL_TOKEN_SIZE   (GLOBAL_SIZE_STR * GLOBAL_STRING) * 4
+#define GLOBAL_LINE_SIZE    GLOBAL_SIZE_STR * 6
+#define GLOBAL_SIZE         GLOBAL_DATA_SIZE * 6 + GLOBAL_LINE_SIZE
+
 #define Crs   "\033[0m"
 #define HCur  "\033[?25l"
 #define ShCur "\033[?25h"
