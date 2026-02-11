@@ -64,9 +64,9 @@ typedef uintptr_t Cell;
 #define LWOff "\033[?7l"
 #define ELin  "\033[K"
 
-enum { K_NO, K_CRA, K_CRB, K_CRC, K_CRD, K_CRE, K_CRF, K_CRG, 
-    K_DEL, K_TAB, K_LF,  K_CRK, K_CRL, K_ENT, K_CRN, K_CRO, K_CRP, K_CRQ, K_CRR, K_CRS, K_CRT, K_CRU, 
-    K_CRV, K_CRW, K_CRX, K_CRY, K_CRZ, K_ESC, K_FS, K_GS, K_RS, K_US, K_SPA,
+enum { K_NO, K_CRA, K_CRB, K_CRC, K_CRD, K_CRE, K_CRF, K_CRG,
+    K_DEL, K_TAB, K_LF,  K_CRK, K_CRL, K_ENT, K_CRN, K_CRO, K_CRP, K_CRQ, K_CRR, K_CRS, K_CRT, K_CRU,
+    K_CRV, K_CRW, K_CRX, K_CRY, K_CRZ, K_ESC, K_FS, K_GS, K_RS, K_US,
     K_UP, K_DOW, K_RIG, K_LEF, K_HOM, K_END, K_PUP, K_PDN, K_INS,
     K_F1, K_F2, K_F3, K_F4, K_F5, K_F6, K_F7, K_F8, K_F9, K_F10, K_F11, K_F12, K_BAC = 127 };
 void* os_open_file(const char* name);

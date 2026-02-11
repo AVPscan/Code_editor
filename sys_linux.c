@@ -64,17 +64,17 @@ KeyIDMap nameid[] = {
     {"[20~", K_F9}, {"[21~", K_F10}, {"[23~", K_F11}, {"[24~", K_F12} };
 
 const char* GetKey(void) {
-    static unsigned char b[6]; unsigned char *p = b; int len = 0; while (len < 6) { b[len] = 0; len++; }
+    static unsigned char b[16]; unsigned char *p = b; int len = 0; while (len < 16) { b[len] = 0; len++; }
     if (read(0, p, 1) <= 0) { *p =27; return (char*)b; }
     unsigned char c = *p; if (c > 127) {
         len = (c >= 0xF0) ? 4 : (c >= 0xE0) ? 3 : (c >= 0xC0) ? 2 : 1;
         while (--len > 0) read(0, ++p, 1);
         return (char*)b; }
-    if (c > 32 && c < 127) return (char*)b; 
+    if (c > 31 && c < 127) return (char*)b; 
     *p++ = 27; *p = c; if (c != 27) return (char*)b; 
-    const unsigned char *s1,*s2; if (read(0, p, 1) > 0) { 
+    const unsigned char *s1,*s2; if (read(0, p, 1) > 0) {
+        s1 = p; len = 14; while (--len > 0 && read(0, (unsigned char*)++s1, 1) > 0) if (*s1 >= 64) break; 
         if (*p < 32 || (*p != '[' && *p != 'O')) { *p = 0; return (char*)b; }
-        s1 = p; len = 4; while (--len > 0 && read(0, (unsigned char*)++s1, 1) > 0);
         for (int j = 0; j < (int)(sizeof(nameid)/sizeof(KeyIDMap)); j++) { s1 = p; s2 = (const unsigned char*)nameid[j].name;
             while (*s1 && *s1 == *s2) { s1++; s2++; }
             if (*s1 == '\0' && *s2 == '\0') { *p++ = nameid[j].id; *p = 0; break; } }
