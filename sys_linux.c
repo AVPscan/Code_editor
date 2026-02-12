@@ -38,13 +38,14 @@ int   os_snprintf(char* buf, size_t size, const char* format, ...) {
     va_list args; va_start(args, format); int res = vsnprintf(buf, size, format, args); va_end(args); return res; }
 void   os_printf(const char* format, ...) {
     va_list args; va_start(args, format); vprintf(format, args); va_end(args); }
-void os_memset(void* buf, int val, size_t len) { if (len == 0) return;
+
+void MemSet(void* buf, int val, size_t len) {
     uint8_t *p = (uint8_t *)buf; uint8_t v = (uint8_t)val;
-    while (((Cell)p & (CELL_SIZE - 1)) && len > 0) { *p++ = v; len--; }
+    while (len && ((Cell)p & (CELL_SIZE - 1))) { *p++ = v; len--; }
     if (len >= CELL_SIZE) {
-        Cell vW = v; for (size_t i = 1; i < CELL_SIZE; i <<= 1) vW |= (vW << (i * 8));
-        Cell *pW = (Cell *)p; size_t countW = len / CELL_SIZE; for (size_t i = 0; i < countW; i++) pW[i] = vW;
-        p = (uint8_t *)(pW + countW); len %= CELL_SIZE; }
+        Cell vW = v * ((Cell)-1 / 255); Cell *pW = (Cell *)p;
+        size_t i = len / CELL_SIZE; len &= (CELL_SIZE - 1); while (i--) *pW++ = vW;
+        p = (uint8_t *)pW; }
     while (len--) *p++ = v; }
 
 void SetInputMode(int raw) {
@@ -53,7 +54,6 @@ void SetInputMode(int raw) {
         tcgetattr(0, &oldt); struct termios newt = oldt; newt.c_lflag &= ~(ICANON | ECHO | ISIG);
         tcsetattr(0, TCSANOW, &newt); fcntl(0, F_SETFL, O_NONBLOCK); } 
     else { tcsetattr(0, TCSANOW, &oldt); fcntl(0, F_SETFL, 0); } }
-
 typedef struct { const char *name; unsigned char id; } KeyIDMap;
 KeyIDMap nameid[] = {
     {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
@@ -62,7 +62,6 @@ KeyIDMap nameid[] = {
     {"OP", K_F1}, {"OQ", K_F2}, {"OR", K_F3}, {"OS", K_F4},
     {"[15~", K_F5}, {"[17~", K_F6}, {"[18~", K_F7}, {"[19~", K_F8},
     {"[20~", K_F9}, {"[21~", K_F10}, {"[23~", K_F11}, {"[24~", K_F12} };
-
 const char* GetKey(void) {
     static unsigned char b[16]; unsigned char *p = b; int len = 0; while (len < 16) { b[len] = 0; len++; }
     if (read(0, p, 1) <= 0) { *p =27; return (char*)b; }
@@ -118,28 +117,28 @@ void SWD(void) { if (!GlobalBuf) return;
     for (char *p = path + len; p > path; p--) if (*p == '/') { *p = '\0'; chdir(path); break; } }
 
 typedef struct {
-    int w, h;       // Ширина и высота в символах (cols, rows)
-    int ratio;      // Целочисленный коэффициент пропорций (H * 100 / W)
-    int pw, ph;     // Виртуальные пиксели (для Брайля: 2x4)
+    int col, row;   // Ширина и высота в символах (cols, rows)
+    int ratio, Sos; // Целочисленный коэффициент пропорций (H * 100 / W) и изменение
+    int Bcol, Brow; // Виртуальные пиксели (для Брайля: 2x4)
 } TermState;
 static TermState TS = {0};
-int GetWH(int *h) { *h = TS.h; return TS.w; }
-    
-int GetC(void) { if (!GlobalBuf || !TS.w) return 1;
-    struct timespec cs, ce; char *p = (char *)(GlobalBuf + GlobalLen - 4096); os_memset(p, ' ', TS.w - 1); p[TS.w - 1] = '\r';
+int GetCR(int *r) { *r = TS.row; return TS.col; }
+int GetSR(int *r) { *r = TS.ratio; return TS.Sos; }
+int GetBCR(int *r) { *r = TS.Brow; return TS.Bcol; }
+
+int GetSC(void) { if (!GlobalBuf || !TS.col) return 1;
+    struct timespec cs, ce; char *p = (char *)(GlobalBuf + GlobalLen - 4096); MemSet(p, ' ', TS.col - 1); p[TS.col - 1] = '\r';
     clock_gettime(CLOCK_MONOTONIC, &cs);
-    for(int i = 0; i < 100; i++) write(1, p, TS.w);
+    for(int i = 0; i < 100; i++) write(1, p, TS.col);
     clock_gettime(CLOCK_MONOTONIC, &ce); 
-    long long ns = (ce.tv_sec - cs.tv_sec) * 1000000000LL + (ce.tv_nsec - cs.tv_nsec); return (int)((ns * 1000) / (TS.w * 100)); }
+    long long ns = (ce.tv_sec - cs.tv_sec) * 1000000000LL + (ce.tv_nsec - cs.tv_nsec); return (int)((ns * 1000) / (TS.col * 100)); }
     
-int SyncSize(void) {
-    struct winsize ws;
+int SyncSize(void) { if (!GlobalBuf) return 0;
+    struct winsize ws; TS.Sos = 0;
     if (ioctl(0, TIOCGWINSZ, &ws) < 0) return 0;
-    if (ws.ws_col != TS.w || ws.ws_row != TS.h) {
-        TS.w = ws.ws_col; TS.h = ws.ws_row;
-        TS.ratio = (TS.w > 0) ? (TS.h * 100) / TS.w : 0;
-        TS.pw = TS.w * 2; TS.ph = TS.h * 4; return 1; }
-    return 0; }
+    if (ws.ws_col == TS.col && ws.ws_row == TS.row) return 0;
+    TS.col = ws.ws_col; TS.row = ws.ws_row; TS.ratio = (TS.col > 0) ? (TS.row * 100) / TS.col : 0;
+    TS.Bcol = TS.col * 2; TS.Brow = TS.row * 4; TS.Sos++; return 1; }
     
 char *GetBuf(void) {
     static int idx = 0; idx = (idx + 1) & (RING_BUF_SLOTS - 1); 

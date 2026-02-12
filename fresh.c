@@ -14,8 +14,9 @@
 #include <unistd.h>
 #include "sys.h"
 
-const Cell DIRTY_MASK = (Cell)0x8181818181818181ULL & (Cell)-1;
-const Cell CLEAN_MASK = ~((Cell)0x8181818181818181ULL & (Cell)-1);
+const Cell UNIT = (Cell)-1 / 255; 
+const Cell DIRTY_MASK = UNIT * 0x81;
+const Cell CLEAN_MASK = ~DIRTY_MASK;
 
 typedef struct {
     uint16_t len;                                               // длина в байтах токена
@@ -67,6 +68,7 @@ int get_vis_width(uint32_t cp) {
         (cp >= 0x1F300) // Открытая граница для будущего!
     )) return 2;
     return 1; }
+
 void smart_append(int row, int col, unsigned char *key) {
     if (row < 0 || col < 0 || key[0] < 32) return;
     int len; uint32_t cp = decode_utf8_fast(key, &len); int vw = get_vis_width(cp);
@@ -84,8 +86,8 @@ void smart_append(int row, int col, unsigned char *key) {
     *a_ptr |= 0x81; }                                           // Помечаем ячейку атрибутов грязной (dirty бит 0x81)
 int view_x = 0, view_y = 0;
 void CRD(int row) {
-    Cell *attr_ptr = (Cell*)GET_ATTR(row, 0); for (size_t i = 0; i < (GLOBAL_SIZE_STR / CELL_SIZE); i++) attr_ptr[i] &= CLEAN_MASK; }
-void render_line_auto(int world_row, int screen_row) { int w, h; w = GetWH(&h); (void)w;
+    Cell *dat = (Cell*)GET_ATTR(row, 0); size_t i = (GLOBAL_SIZE_STR / CELL_SIZE); while (i--) *dat++ &= CLEAN_MASK; }
+void render_line_auto(int world_row, int screen_row) { int w, h; w = GetCR(&h); (void)w;
     printf("\033[%d;1H%s", screen_row + 1, LWOff);
     if (world_row < 0 || world_row >= GLOBAL_STRING) { printf("\033[%d;1H%s%s", screen_row + 1, LWOff, ELin); return; }
     LineData *ld = GET_DLINE(world_row);
@@ -98,7 +100,7 @@ void render_line_auto(int world_row, int screen_row) { int w, h; w = GetWH(&h); 
         fwrite(data_ptr + byte_off, 1, ld->len - byte_off, stdout); }
     printf(ELin); CRD(world_row); }
 void refresh_world(int cur_x, int cur_y) {
-    int w, h; w = GetWH(&h); if (cur_x < view_x) view_x = cur_x; 
+    int w, h; w = GetCR(&h); if (cur_x < view_x) view_x = cur_x; 
     if (cur_x >= view_x + w) view_x = cur_x - w + 1;
     if (cur_y < view_y) view_y = cur_y;
     if (cur_y >= view_y + h) view_y = cur_y - h + 1;
