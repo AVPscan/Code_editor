@@ -83,5 +83,7 @@ int GetSR(int *r);
 int GetBCR(int *r);
 int GetSC(size_t addr);
 int SyncSize(size_t addr);
-
+uint32_t UTFlen(unsigned char *s, int *len);
+int UTFcom(uint32_t cp);
+int UTFvw(uint32_t cp);
 #endif /* SYS_H */
