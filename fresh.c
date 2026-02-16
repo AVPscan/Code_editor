@@ -39,20 +39,28 @@ char      *Avbuf      = NULL;
 #define SizeVBuff     65536 
 #define SizeVram      (SizeData + SizeAttr + SizeVizLen + SizeBlen + SizeSysBuff + SizeVBuff)
 #define Data(r)       (Cdata + ((r) << 15))
-#define Attr(r, c)    (Cattr + ((r) << 13) + (c)) / 7 Dirty 65 Reserve 4 Bold 3 Inverse 210 Colour
+#define Attr(r, c)    (Cattr + ((r) << 13) + (c)) // 7 Dirty 65 Reserve 4 Bold 3 Inverse 210 Colour
 #define Visi(r, c)    (Cvlen + ((r) << 13) + (c))
 #define Len(r, c)     (Cblen + ((r) << 13) + (c))
+#define Colour(col)   (Asbuf + ((col) << 5))      // 0 Current 1 Bw 2-7 Palette
 
-void InitPalette(void) {
-    const char* colors[] = { Green, ColorOff, Grey, Green, Red, Blue, Orange, Gold };
-    uint8_t len, lco = strlen(ColorOff), i = 8; char *slot, *rep;
-    while (i--) { slot = Asbuf + (i << 5); rep = slot;
-        *rep++ = lco; MemCpy(rep, ColorOff, lco); len = strlen(colors[i]);
-        *slot++ = len; MemCpy(slot, colors[i], len); } }
+void InitVram(size_t addr, size_t size) { if (!addr || (size < SizeVram)) return;
+  Cdata = (char*)(addr);
+  Cattr = (uint8_t*)((char*)Cdata + SizeData);
+  Cvlen = (uint8_t*)((uint8_t*)Cattr + SizeAttr);
+  Cblen = (uint8_t*)((uint8_t*)Cvlen + SizeVizLen);
+  Asbuf = (char*)((uint8_t*)Cblen + SizeBlen);
+  Avbuf = (char*)((char*)Asbuf + SizeSysBuff);
+  MemSet(Cdata,' ',SizeData); MemSet(Cattr,Fresh,SizeAttr); MemSet(Cvlen,1,(SizeVizLen + SizeBlen));
+  const char* colors[] = { Green, ColorOff, Grey, Green, Red, Blue, Orange, Gold };
+  uint8_t len, lco = strlen(ColorOff), i = 8; char *slot, *rep;
+  while (i--) { slot = Colour(i); rep = slot;
+      *rep++ = lco; MemCpy(rep, ColorOff, lco); len = strlen(colors[i]);
+      *slot++ = len; MemCpy(slot, colors[i], len); } }
 
 void help() {
     printf(Grey "Created by " Green "Alexey Pozdnyakov" Grey " in " Green "02.2026" Grey 
-           " version " Green "2.12" Grey ", email " Green "avp70ru@mail.ru" Grey 
+           " version " Green "2.13" Grey ", email " Green "avp70ru@mail.ru" Grey 
            " github " Green "https://github.com" Grey "\n"); }
 
 int main(int argc, char *argv[]) {
@@ -60,13 +68,7 @@ int main(int argc, char *argv[]) {
                   return 0; }
   int w = 0, h = 0, cur_x = 0, cur_y = 0;
   size_t size = SizeVram, ram, sc; if (!(ram = GetRam(&size))) return 0;
-  Cdata = (char*)(ram);
-  Cattr = (uint8_t*)((char*)Cdata + SizeData);
-  Cvlen = (uint8_t*)((uint8_t*)Cattr + SizeAttr);
-  Cblen = (uint8_t*)((uint8_t*)Cvlen + SizeVizLen);
-  Asbuf = (char*)((uint8_t*)Cblen + SizeBlen);
-  Avbuf = (char*)((char*)Asbuf + SizeSysBuff);
-  SWD(ram); InitPalette(); Delay_ms(0); SetInputMode(1); sc = ((size*10)/1048576);
+  SWD(ram); InitVram(ram,size); Delay_ms(0); SetInputMode(1); sc = ((size*10)/1048576);
   printf(Reset HideCur WrapOff "%zu", sc); fflush(stdout); snprintf((char*)Cdata, 128, "%zu", sc);
   while (1) {
     sc = SyncSize(ram); Delay_ms(20);

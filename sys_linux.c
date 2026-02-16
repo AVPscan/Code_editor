@@ -176,10 +176,10 @@ int8_t UTFinfo(unsigned char *s, uint8_t *len) {
             { *len = 4; cp = ((c & 0x07) << 18) | ((s[1] & 0x3F) << 12) | ((s[2] & 0x3F) << 6) | (s[3] & 0x3F); }
     else return -2;
     if ((*len == 2 && cp < 0x80) || (*len == 3 && (cp < 0x800 || (cp >= 0xD800 && cp <= 0xDFFF))) || 
-        (*len == 4 && (cp < 0x10000 || cp > 0x10FFFF))) return -2;
+        (*len == 4 && (cp < 0x10000 || cp > 0x10FFFF))) return -2;  // битый
     if ((cp >= 0x0300 && cp <= 0x036F) || (cp >= 0x1DC0 && cp <= 0x1DFF) || (cp >= 0x20D0 && cp <= 0x20FF) ||
         (cp == 0x200D || (cp >= 0xFE00 && cp <= 0xFE0F))) return 0; // прилепало
-    if (cp == 0 || cp < 32 || (cp >= 0x7F && cp < 0xA0)) return -1;   // управляющие
+    if (cp == 0 || cp < 32 || (cp >= 0x7F && cp < 0xA0)) return -1; // управляющие
     if (cp < 256) return 1;
     if (cp == 0x200B || cp == 0x200C || cp == 0x200E || cp == 0x200F || (cp >= 0xFE20 && cp <= 0xFE2F) || (cp >= 0xE0100 && cp <= 0xE01EF)) return 0;
     if ((cp >= 0x1100 && cp <= 0x115F) || (cp == 0x2329 || cp == 0x232A) ||
@@ -193,6 +193,6 @@ int8_t UTFinfoTile(unsigned char *s, uint8_t *len, size_t rem) {
     *len = 0; if (rem == 0) return -3;
     *len = 1;
     if ((*s & 0xE0) == 0xC0 && rem < 2) return -3;
-    else if ((*s & 0xF0) == 0xE0 && rem < 3) return -3;
+    else if ((*s & 0xF0) == 0xE0 && rem < 3) return -3; // не влез
     else if ((*s & 0xF8) == 0xF0 && rem < 4) return -3;
     return UTFinfo(s, len); }
