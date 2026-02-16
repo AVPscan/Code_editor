@@ -50,7 +50,7 @@ char      *Avbuf      = NULL;
 #define Parse(ibc)    (Asbuf + 256 + ((ibc) << 5)) // 0-31 All
 
 void InitPD(uint8_t col) { col &= Mcol;
-  const char* modes[4] = { "\012\03322;27;55;", "\011\03327;55;1;", "\011\03322;7;53;", "\010\0331;7;53;" };
+  const char* modes[4] = { "\013\033[22;27;55;", "\012\033[27;55;1;", "\012\033[22;7;53;", "\011\033[1;7;53;" };
   uint8_t m = 4, lm, ibc, ca, c; char *ac, *dst;
   if (col) { ac = Colour(col); dst = Colour(0); MemCpy(dst , (ac + 1), *ac); }
   while(m) { const char* mode = modes[--m]; lm = *mode++, c = 8; 
@@ -60,13 +60,9 @@ void InitPD(uint8_t col) { col &= Mcol;
 void InitVram(size_t addr, size_t size) { if (!addr || (size < SizeVram)) return;
   const char* colors[] = { Green, ColorOff, Grey, Green, Red, Blue, Orange, Gold };
   uint8_t len, lco = strlen(ColorOff); char *slot, *rep; uint16_t *a1, *a2, i = 0;
-  Cdata   = (char*)(addr);
-  Coffset = (uint16_t*)(Cdata + SizeData);
-  Cattr   = (uint8_t*)((char*)Coffset + SizeOffset);
-  Cvlen   = (uint8_t*)((uint8_t*)Cattr + SizeAttr);
-  Clen    = (uint8_t*)((uint8_t*)Cvlen + SizeVizLen);
-  Asbuf   = (char*)((uint8_t*)Clen + SizeLen);
-  Avbuf   = (char*)((char*)Asbuf + SizeSysBuff);
+  Cdata = (char*)(addr); Coffset = (uint16_t*)(Cdata + SizeData); Cattr = (uint8_t*)((char*)Coffset + SizeOffset);
+  Cvlen = (uint8_t*)((uint8_t*)Cattr + SizeAttr); Clen = (uint8_t*)((uint8_t*)Cvlen + SizeVizLen);
+  Asbuf = (char*)((uint8_t*)Clen + SizeLen); Avbuf = (char*)((char*)Asbuf + SizeSysBuff);
   a1 = Coffset; while(i < CellLine) *a1++ = i++;
   a2 = a1; i = 0; while(++i < String) { MemCpy(a1,a2,SizeCOL); a1 = a2; a2 += SizeCOL; }
   i = 8; MemSet(Cdata,' ',SizeData); MemSet(Cattr,Fresh,SizeAttr); MemSet(Cvlen,1,(SizeVizLen + SizeLen));
@@ -83,12 +79,13 @@ void help() {
 int main(int argc, char *argv[]) {
   if (argc > 1) { if (strcmp(argv[1], "-?") == 0 || strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "-help") == 0) help();
                   return 0; }
-  int16_t w, h, cur_x = 0, cur_y = 0;
-  size_t size = SizeVram, ram, sc; if (!(ram = GetRam(&size))) return 0;
-  SWD(ram); InitVram(ram,size); Delay_ms(0); SetInputMode(1); sc = ((size*10)/1048576);
-  printf(Reset HideCur WrapOff "%zu", sc); fflush(stdout); snprintf((char*)Cdata, 128, "%zu", sc);
+  int16_t w, h, ff, cur_x = 0, cur_y = 0; size_t size = SizeVram, ram, sc; if (!(ram = GetRam(&size))) return 0;
+  SWD(ram); InitVram(ram,size); Delay_ms(0); SetInputMode(1);
+  ff = SyncSize(ram,0); w = TermCR(&h); int16_t ow = w, oh = h; sc = ((size*10)/1048576);
+  printf(Reset HideCur WrapOff "%zu", sc); fflush(stdout); snprintf((char*)Cdata, 128, "%zu", size);
   while (1) {
-    sc = SyncSize(ram,0); w = TermCR(&h); Delay_ms(20); const char* k = GetKey();
+    if ((ff = SyncSize(ram,1))) { ow = w; oh = h; w = TermCR(&h); }
+    Delay_ms(20); const char* k = GetKey();
     if (k[0] == 27) {
         if (k[1] == K_NO) continue;
         if (k[1] == K_ESC) break;

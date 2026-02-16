@@ -94,13 +94,13 @@ void MemMove(void* dst, const void* src, size_t len);
 void SetInputMode(int raw);
 const char* GetKey(void);
 uint64_t GetCycles(void);
-void  Delay_ms(int ms);
+void Delay_ms(int ms);
+int16_t TermCR(int16_t *r);
+int SyncSize(size_t addr, uint8_t flag);
+int GetSC(size_t addr);
 size_t GetRam(size_t *size);
 void FreeRam(size_t addr, size_t size);
 void SWD(size_t addr);
-int16_t TermCR(int16_t *r);
-int GetSC(size_t addr);
-int SyncSize(size_t addr, uint8_t flag);
 int8_t UTFinfo(unsigned char *s, uint8_t *len);
 int8_t UTFinfoTile(unsigned char *s, uint8_t *len, size_t rem);
 

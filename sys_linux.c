@@ -127,10 +127,10 @@ void Delay_ms(int ms) {
                                if (now.tv_sec > check_start.tv_sec) { cpu_hz = 0; break; }
                                safety = 0; } } }
 
-typedef struct { int16_t col, row; } TermState;
-static TermState TS = {0};
+typedef struct { int16_t col , row; } TermState;
+TermState TS = {0};
 int16_t TermCR(int16_t *r) { *r = TS.row; return TS.col; }
-    
+
 int SyncSize(size_t addr, uint8_t flag) { if (!addr) return 0;
     struct winsize ws, cur; if (ioctl(0, TIOCGWINSZ, &ws) < 0) return 0;
     if (ws.ws_col == TS.col && ws.ws_row == TS.row) return 0;
@@ -147,13 +147,13 @@ int GetSC(size_t addr) { if (!addr || !TS.col) return 1;
     clock_gettime(CLOCK_MONOTONIC, &ce); 
     long long ns = (ce.tv_sec - cs.tv_sec) * 1000000000LL + (ce.tv_nsec - cs.tv_nsec); return (int)((ns * 1000) / (TS.col * 100)); }
 
-size_t GetRam(size_t *size) {
+size_t GetRam(size_t *size) { if (!*size) return 0;
     size_t l = (*size + 0xFFF) & ~0xFFF; void *r = mmap(0, l, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (r == MAP_FAILED) { r = 0; l = 0; }
     *size = l; return (size_t)r; }
 
 void FreeRam(size_t addr, size_t size) { if (addr) munmap((void*)addr, size); }
-    
+
 void SWD(size_t addr) { if (!addr) return;
     char *path = (char *)(addr); ssize_t len = readlink("/proc/self/exe", path, 1024); if (len <= 0) return;
     path[len] = '\0'; if (strncmp(path, "/nix/store", 10) == 0) {
