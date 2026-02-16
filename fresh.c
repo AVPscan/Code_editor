@@ -22,38 +22,37 @@ const uint8_t  Mibc = 0x1F;
 const Cell UNIT = (Cell)-1 / 255; 
 const Cell DIRTY_MASK = UNIT * Fresh;
 const Cell CLEAN_MASK = ~DIRTY_MASK;
-char      *Adata      = NULL;
-uint8_t   *Aattr      = NULL;
-uint8_t   *Avlen      = NULL;
-uint16_t  *Ablen      = NULL;
+char      *Cdata      = NULL;
+uint8_t   *Cattr      = NULL;
+uint8_t   *Cvlen      = NULL;
+uint8_t   *Cblen      = NULL;
 char      *Asbuf      = NULL;
 char      *Avbuf      = NULL;
 #define CellLine      8192
-#define SizeSL        CellLine * 4
 #define String        5062
+#define SizeSL        CellLine * 4
 #define SizeData      ((size_t)String * SizeSL)
 #define SizeAttr      ((size_t)String * CellLine)
 #define SizeVizLen    ((size_t)String * CellLine)
-#define SizeBlen      ((size_t)String * CellLine * 2)
+#define SizeBlen      ((size_t)String * CellLine)
 #define SizeSysBuff   4096
 #define SizeVBuff     65536 
 #define SizeVram      (SizeData + SizeAttr + SizeVizLen + SizeBlen + SizeSysBuff + SizeVBuff)
-
-#define DATA(r)       (Adata + ((r) << 15))
-#define ATTR(r, c)    (Aattr + ((r) << 13) + (c))
-#define VIS(r, c)     (Avlen + ((r) << 13) + (c))
-#define LEN(r, c)     (Ablen + ((r) << 13) + (c))
+#define Data(r)       (Cdata + ((r) << 15))
+#define Attr(r, c)    (Cattr + ((r) << 13) + (c)) / 7 Dirty 65 Reserve 4 Bold 3 Inverse 210 Colour
+#define Visi(r, c)    (Cvlen + ((r) << 13) + (c))
+#define Len(r, c)     (Cblen + ((r) << 13) + (c))
 
 void InitPalette(void) {
-    for (int i = 0; i < 8; i++) { char *slot = Asbuf + (i << 5);
-        uint8_t len = strlen(ColorOff); *slot = len; memcpy(slot + 1, ColorOff, len); }
-    const char* colors[] = { Green, Grey, Green, Red, Blue, Orange, Gold, ColorOff };  
-    for (int i = 0; i < 7; i++) { char *slot = Asbuf + (i << 5);
-        uint8_t len = strlen(colors[i]); *slot = len; memcpy(slot + 1, colors[i], len); } }
-    
+    const char* colors[] = { Green, ColorOff, Grey, Green, Red, Blue, Orange, Gold };
+    uint8_t len, lco = strlen(ColorOff), i = 8; char *slot, *rep;
+    while (i--) { slot = Asbuf + (i << 5); rep = slot;
+        *rep++ = lco; MemCpy(rep, ColorOff, lco); len = strlen(colors[i]);
+        *slot++ = len; MemCpy(slot, colors[i], len); } }
+
 void help() {
     printf(Grey "Created by " Green "Alexey Pozdnyakov" Grey " in " Green "02.2026" Grey 
-           " version " Green "2.11" Grey ", email " Green "avp70ru@mail.ru" Grey 
+           " version " Green "2.12" Grey ", email " Green "avp70ru@mail.ru" Grey 
            " github " Green "https://github.com" Grey "\n"); }
 
 int main(int argc, char *argv[]) {
@@ -61,14 +60,14 @@ int main(int argc, char *argv[]) {
                   return 0; }
   int w = 0, h = 0, cur_x = 0, cur_y = 0;
   size_t size = SizeVram, ram, sc; if (!(ram = GetRam(&size))) return 0;
-  Adata = (char*)(ram);
-  Aattr = (uint8_t*)((char*)Adata + SizeData);
-  Avlen = (uint8_t*)((char*)Aattr + SizeAttr);
-  Ablen = (uint16_t*)((char*)Avlen + SizeVizLen);
-  Asbuf = (char*)((char*)Ablen + SizeBlen);
+  Cdata = (char*)(ram);
+  Cattr = (uint8_t*)((char*)Cdata + SizeData);
+  Cvlen = (uint8_t*)((uint8_t*)Cattr + SizeAttr);
+  Cblen = (uint8_t*)((uint8_t*)Cvlen + SizeVizLen);
+  Asbuf = (char*)((uint8_t*)Cblen + SizeBlen);
   Avbuf = (char*)((char*)Asbuf + SizeSysBuff);
   SWD(ram); InitPalette(); Delay_ms(0); SetInputMode(1); sc = ((size*10)/1048576);
-  printf(Reset HideCur WrapOff "%zu", sc); fflush(stdout); snprintf((char*)Adata, 128, "%zu", sc);
+  printf(Reset HideCur WrapOff "%zu", sc); fflush(stdout); snprintf((char*)Cdata, 128, "%zu", sc);
   while (1) {
     sc = SyncSize(ram); Delay_ms(20);
     const char* k = GetKey();
