@@ -39,11 +39,20 @@ char      *Avbuf      = NULL;
 #define SizeVBuff     65536 
 #define SizeVram      (SizeData + SizeAttr + SizeVizLen + SizeBlen + SizeSysBuff + SizeVBuff)
 #define Data(r)       (Cdata + ((r) << 15))
-#define Attr(r, c)    (Cattr + ((r) << 13) + (c)) // 7 Dirty 65 Reserve 4 Bold 3 Inverse 210 Colour
+#define Attr(r, c)    (Cattr + ((r) << 13) + (c))  // 7 Dirty 65 Reserve 4 Bold 3 Inverse 210 Colour
 #define Visi(r, c)    (Cvlen + ((r) << 13) + (c))
 #define Len(r, c)     (Cblen + ((r) << 13) + (c))
-#define Colour(col)   (Asbuf + ((col) << 5))      // 0 Current 1 Bw 2-7 Palette
+#define Colour(col)   (Asbuf + ((col) << 5))       // 0 Current 1 Bw 2-7 Palette
+#define Parse(ibc)    (Asbuf + 256 + ((ibc) << 5)) // 0-31 All
 
+void InitPD(uint8_t col) { col &= Mcol;
+  const char* modes[4] = { "\012\03322;27;55;", "\011\03327;55;1;", "\011\03322;7;53;", "\010\0331;7;53;" };
+  uint8_t m = 4, lm, ibc, ca, c; char *ac, *dst;
+  if (col) { ac = Colour(col); dst = Colour(0); MemCpy(dst , (ac + 1), *ac); }
+  while(m) { const char* mode = modes[--m]; lm = *mode++, c = 8; 
+      while(c) { ac = Colour(--c); ibc = (m << 3) + c; ca = *ac - 4; ac += 4; 
+        dst = Parse(ibc); MemCpy(dst, mode, lm); MemCpy(dst + lm, ac, ca); } } }
+        
 void InitVram(size_t addr, size_t size) { if (!addr || (size < SizeVram)) return;
   Cdata = (char*)(addr);
   Cattr = (uint8_t*)((char*)Cdata + SizeData);
@@ -56,7 +65,8 @@ void InitVram(size_t addr, size_t size) { if (!addr || (size < SizeVram)) return
   uint8_t len, lco = strlen(ColorOff), i = 8; char *slot, *rep;
   while (i--) { slot = Colour(i); rep = slot;
       *rep++ = lco; MemCpy(rep, ColorOff, lco); len = strlen(colors[i]);
-      *slot++ = len; MemCpy(slot, colors[i], len); } }
+      *slot++ = len; MemCpy(slot, colors[i], len); } 
+ InitPD(0); }
 
 void help() {
     printf(Grey "Created by " Green "Alexey Pozdnyakov" Grey " in " Green "02.2026" Grey 

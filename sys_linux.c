@@ -54,6 +54,15 @@ void MemCpy(void* dst, const void* src, size_t len) {
         d = (uint8_t *)dW; s = (uint8_t *)sW; }
     while (len--) *d++ = *s++ ; }
 
+void MemMove(void* dst, const void* src, size_t len) {
+    if (dst > src) { uint8_t *d = (uint8_t *)dst; const uint8_t *s = (const uint8_t *)src;
+        d += len; s += len; while (len && ((Cell)d & (CELL_SIZE - 1))) { *--d = *--s; len--; }
+        if (len >= CELL_SIZE && ((Cell)s & (CELL_SIZE - 1)) == 0) {
+            Cell *dW = (Cell *)d; const Cell *sW = (const Cell *)s; size_t i = len / CELL_SIZE;
+            len &= (CELL_SIZE - 1); while (i--) *--dW = *--sW;
+            d = (uint8_t *)dW; s = (uint8_t *)sW; } }
+    else if (dst < src ) MemCpy(dst, src, len); }
+    
 int8_t MemCmp(void* dst, const void* src, size_t len) {
     uint8_t *d = (uint8_t *)dst; const uint8_t *s = (const uint8_t *)src;
     while (len && ((Cell)d & (CELL_SIZE - 1))) { if (*d != *s) return (int8_t)(*d - *s);
@@ -66,15 +75,6 @@ int8_t MemCmp(void* dst, const void* src, size_t len) {
     while (len--) { if (*d != *s) return (int8_t)(*d - *s);
                     d++; s++ ; }
     return 0; }
-
-void MemMove(void* dst, const void* src, size_t len) {
-    if (dst > src) { uint8_t *d = (uint8_t *)dst; const uint8_t *s = (const uint8_t *)src;
-        d += len; s += len; while (len && ((Cell)d & (CELL_SIZE - 1))) { *--d = *--s; len--; }
-        if (len >= CELL_SIZE && ((Cell)s & (CELL_SIZE - 1)) == 0) {
-            Cell *dW = (Cell *)d; const Cell *sW = (const Cell *)s; size_t i = len / CELL_SIZE;
-            len &= (CELL_SIZE - 1); while (i--) *--dW = *--sW;
-            d = (uint8_t *)dW; s = (uint8_t *)sW; } }
-    else if (dst < src ) MemCpy(dst, src, len); }
 
 void SetInputMode(int raw) {
     static struct termios oldt;
