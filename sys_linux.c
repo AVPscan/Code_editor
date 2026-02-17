@@ -36,52 +36,51 @@ int   os_snprintf(char* buf, size_t size, const char* format, ...) {
 void   os_printf(const char* format, ...) {
     va_list args; va_start(args, format); vprintf(format, args); va_end(args); }
 
-void MemSet(void* buf, int val, size_t len) {
-    uint8_t *p = (uint8_t *)buf; uint8_t v = (uint8_t)val;
-    while (len && ((Cell)p & (CELL_SIZE - 1))) { *p++ = v; len--; }
-    if (len >= CELL_SIZE) {
-        Cell vW = v * ((Cell)-1 / 255); Cell *pW = (Cell *)p;
-        size_t i = len / CELL_SIZE; len &= (CELL_SIZE - 1); while (i--) *pW++ = vW;
+void MemSet(void* buf, uint8_t val, size_t len) {
+    uint8_t *p = (uint8_t *)buf; while (len && ((Cell)p & (SizeCell - 1))) { *p++ = val; len--; }
+    if (len >= SizeCell) {
+        Cell vW = val * ((Cell)-1 / 255); Cell *pW = (Cell *)p;
+        size_t i = len / SizeCell; len &= (SizeCell - 1); while (i--) *pW++ = vW;
         p = (uint8_t *)pW; }
-    while (len--) *p++ = v; }
+    while (len--) *p++ = val; }
 
 void MemCpy(void* dst, const void* src, size_t len) {
     uint8_t *d = (uint8_t *)dst; const uint8_t *s = (const uint8_t *)src;
-    while (len && ((Cell)d & (CELL_SIZE - 1))) { *d++ = *s++; len--; }
-    if (len >= CELL_SIZE && ((Cell)s & (CELL_SIZE - 1)) == 0) {
-        Cell *dW = (Cell *)d; const Cell *sW = (const Cell *)s; size_t i = len / CELL_SIZE;
-        len &= (CELL_SIZE - 1); while (i--) *dW++ = *sW++;
+    while (len && ((Cell)d & (SizeCell - 1))) { *d++ = *s++; len--; }
+    if (len >= SizeCell && ((Cell)s & (SizeCell - 1)) == 0) {
+        Cell *dW = (Cell *)d; const Cell *sW = (const Cell *)s; size_t i = len / SizeCell;
+        len &= (SizeCell - 1); while (i--) *dW++ = *sW++;
         d = (uint8_t *)dW; s = (uint8_t *)sW; }
     while (len--) *d++ = *s++ ; }
 
 void MemMove(void* dst, const void* src, size_t len) {
     if (dst > src) { uint8_t *d = (uint8_t *)dst; const uint8_t *s = (const uint8_t *)src;
-        d += len; s += len; while (len && ((Cell)d & (CELL_SIZE - 1))) { *--d = *--s; len--; }
-        if (len >= CELL_SIZE && ((Cell)s & (CELL_SIZE - 1)) == 0) {
-            Cell *dW = (Cell *)d; const Cell *sW = (const Cell *)s; size_t i = len / CELL_SIZE;
-            len &= (CELL_SIZE - 1); while (i--) *--dW = *--sW;
+        d += len; s += len; while (len && ((Cell)d & (SizeCell - 1))) { *--d = *--s; len--; }
+        if (len >= SizeCell && ((Cell)s & (SizeCell - 1)) == 0) {
+            Cell *dW = (Cell *)d; const Cell *sW = (const Cell *)s; size_t i = len / SizeCell;
+            len &= (SizeCell - 1); while (i--) *--dW = *--sW;
             d = (uint8_t *)dW; s = (uint8_t *)sW; } }
     else if (dst < src ) MemCpy(dst, src, len); }
     
 int8_t MemCmp(void* dst, const void* src, size_t len) {
     uint8_t *d = (uint8_t *)dst; const uint8_t *s = (const uint8_t *)src;
-    while (len && ((Cell)d & (CELL_SIZE - 1))) { if (*d != *s) return (int8_t)(*d - *s);
+    while (len && ((Cell)d & (SizeCell - 1))) { if (*d != *s) return (int8_t)(*d - *s);
                                                  d++; s++; len--; }
-    if (len >= CELL_SIZE && ((Cell)s & (CELL_SIZE - 1)) == 0) {
-        Cell *dW = (Cell *)d; const Cell *sW = (const Cell *)s; size_t i = len / CELL_SIZE;
-        len &= (CELL_SIZE - 1); while (i-- && (*dW == *sW)) { dW++; sW++; }
+    if (len >= SizeCell && ((Cell)s & (SizeCell - 1)) == 0) {
+        Cell *dW = (Cell *)d; const Cell *sW = (const Cell *)s; size_t i = len / SizeCell;
+        len &= (SizeCell - 1); while (i-- && (*dW == *sW)) { dW++; sW++; }
         d = (uint8_t *)dW; s = (uint8_t *)sW;
-        if (i != (Cell)-1) len = CELL_SIZE; }
+        if (i != (Cell)-1) len = SizeCell; }
     while (len--) { if (*d != *s) return (int8_t)(*d - *s);
                     d++; s++ ; }
     return 0; }
 
-void SetInputMode(int raw) {
-    static struct termios oldt;
-    if (raw) {
+void SwitchRaw(void) {
+    static struct termios oldt; static uint8_t flag = 1;
+    if (flag) {
         tcgetattr(0, &oldt); struct termios newt = oldt; newt.c_lflag &= ~(ICANON | ECHO | ISIG);
-        tcsetattr(0, TCSANOW, &newt); fcntl(0, F_SETFL, O_NONBLOCK); } 
-    else { tcsetattr(0, TCSANOW, &oldt); fcntl(0, F_SETFL, 0); } }
+        tcsetattr(0, TCSANOW, &newt); fcntl(0, F_SETFL, O_NONBLOCK); flag = 0; } 
+    else { tcsetattr(0, TCSANOW, &oldt); fcntl(0, F_SETFL, 0); flag = 1; } }
 typedef struct { const char *name; unsigned char id; } KeyIDMap;
 KeyIDMap nameid[] = {
     {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},

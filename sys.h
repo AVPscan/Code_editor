@@ -71,7 +71,7 @@
 #define WrapOff     "\033[?7l"      // Выключить перенос строк
 
 typedef uintptr_t Cell;
-#define CELL_SIZE sizeof(Cell)
+#define SizeCell sizeof(Cell)
 
 enum { K_NO, K_CRA, K_CRB, K_CRC, K_CRD, K_CRE, K_CRF, K_CRG,
     K_DEL, K_TAB, K_LF,  K_CRK, K_CRL, K_ENT, K_CRN, K_CRO, K_CRP, K_CRQ, K_CRR, K_CRS, K_CRT, K_CRU,
@@ -87,11 +87,11 @@ int   os_print_file(void* handle, const char* format, ...);
 void  os_printf(const char* format, ...);
 int   os_snprintf(char* buf, size_t size, const char* format, ...);
 
-void MemSet(void* buf, int val, size_t len);
+void MemSet(void* buf, uint8_t val, size_t len);
 void MemCpy(void* dst, const void* src, size_t len);
 int8_t MemCmp(void* dst, const void* src, size_t len);
 void MemMove(void* dst, const void* src, size_t len);
-void SetInputMode(int raw);
+void SwitchRaw(void);
 const char* GetKey(void);
 uint64_t GetCycles(void);
 void Delay_ms(int ms);
