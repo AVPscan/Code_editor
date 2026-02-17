@@ -27,8 +27,9 @@ uint16_t  *Coffset    = NULL;
 uint8_t   *Cattr      = NULL;
 uint8_t   *Cvlen      = NULL;
 uint8_t   *Clen       = NULL;
-char      *Asbuf      = NULL;
-char      *Avbuf      = NULL;
+char      *Apdat      = NULL;
+uint16_t  *Awdat      = NULL;
+char      *Avdat      = NULL;
 #define CellLine      8192
 #define String        5062
 #define SizeCOL       CellLine * 2
@@ -38,34 +39,33 @@ char      *Avbuf      = NULL;
 #define SizeAttr      ((size_t)String * CellLine)
 #define SizeVizLen    ((size_t)String * CellLine)
 #define SizeLen       ((size_t)String * CellLine)
-#define SizeSysBuff   10240
+#define SizePalBuff   1024
+#define SizeWinDat    1024
 #define SizeVBuff     65536
-#define SizeVram      (SizeData + SizeOffset + SizeAttr + SizeVizLen + SizeLen + SizeSysBuff + SizeVBuff)
+#define SizeVram      (SizeData + SizeOffset + SizeAttr + SizeVizLen + SizeLen + SizePalBuff + SizeWinDat + SizeVBuff)
 #define Data(r)       (Cdata + ((r) << 15))
 #define Offset(r, c)  (Coffset + ((r) << 14) + (c))
 #define Attr(r, c)    (Cattr + ((r) << 13) + (c))   // 7 Dirty 65 Reserve 432 Colour 1 Bold 0 Inverse
 #define Visi(r, c)    (Cvlen + ((r) << 13) + (c))
 #define Len(r, c)     (Clen + ((r) << 13) + (c))
-#define Parse(cbi)    (Asbuf + ((cbi) << 5))        // 0-31 All
-#define Colour(col)   (Asbuf + 1024 + ((col) << 5)) // 0 Current 1 Bw 2-7 Palette
-#define WindowData    (Asbuf + 1280)
+#define Parse(cbi)    (Apdat + ((cbi) << 5))        // 0-31 All
+#define WindowData    (Awdat)
 
-void InitPD(uint8_t col) { col &= Mcol;
+void SetColour(uint8_t col) { if (!(col &= Mcol)) col = 3;
+  col <<= 2; MemCpy( Parse(0), Parse(col), 128); }
+
+void InitVram(size_t addr, size_t size) { if (!addr || (size < SizeVram)) return;
   const char* colors[] = { Green, ColorOff, Grey, Green, Red, Blue, Orange, Gold };
   const char* modes[] = { "\011\033[1;7;53;", "\012\033[1;27;55;", "\012\033[22;7;53;", "\013\033[22;27;55;" };
   uint8_t lm, cbi, ca, c = strlen(ColorOff), i = 8; char *ac, *dst;
-  while (i--) { ac = Colour(i); dst = ac;
-      *dst++ = c; MemCpy(dst, ColorOff, c); ca = strlen(colors[i]);
-      *ac++ = ca; MemCpy(ac, colors[i], ca); }
-  i = 4; if (col) { ac = Colour(col); dst = Colour(0); *dst++ = *ac; MemCpy(dst , (ac + 1), *ac); }
-  while(i) { const char* mode = modes[--i]; lm = *mode++, c = 8; 
-      while(c) { ac = Colour(--c); cbi = (c << 2) + i; ca = *ac - 5; ac += 5;
-        dst = Parse(cbi); *dst++ = lm + ca; MemCpy(dst, mode, lm); MemCpy(dst + lm, ac, ca); } } }
-        
-void InitVram(size_t addr, size_t size) { if (!addr || (size < SizeVram)) return;
-  Cdata = (char*)(addr); Coffset = (uint16_t*)(Cdata + SizeData); Cattr = (uint8_t*)((char*)Coffset + SizeOffset);
-  Cvlen = (uint8_t*)((uint8_t*)Cattr + SizeAttr); Clen = (uint8_t*)((uint8_t*)Cvlen + SizeVizLen);
-  Asbuf = (char*)((uint8_t*)Clen + SizeLen); Avbuf = (char*)((char*)Asbuf + SizeSysBuff); InitPD(0); }
+  Cdata = (char*)(addr); Coffset = (uint16_t*)(Cdata + SizeData); Cattr = (uint8_t*)((uint8_t*)Coffset + SizeOffset);
+  Cvlen = (uint8_t*)(Cattr + SizeAttr); Clen = (uint8_t*)(Cvlen + SizeVizLen);
+  Apdat = (char*)(Clen + SizeLen); Awdat = (uint16_t*)(Apdat + SizePalBuff); Avdat = (char*)((uint8_t*)Awdat + SizeWinDat);
+  while (i--) { ac = (Avdat + ((i) << 5)); dst = ac; *dst++ = c; MemCpy(dst, ColorOff, c);
+      ca = strlen(colors[i]); if (ca) { *ac++ = ca; MemCpy(ac, colors[i], ca); } }
+  i = 4; while(i) { const char* mode = modes[--i]; lm = *mode++, c = 8; 
+            while(c) { ac = (Avdat + ((--c) << 5)); cbi = (c << 2) + i; ca = *ac - 2; ac += 2;
+                dst = Parse(cbi); *dst++ = lm + ca; MemCpy(dst, mode, lm); MemCpy(dst + lm, ac, ca); } } }
 
 void help() {
     printf(Grey "Created by " Green "Alexey Pozdnyakov" Grey " in " Green "02.2026" Grey 
@@ -75,12 +75,12 @@ void help() {
 int main(int argc, char *argv[]) {
   if (argc > 1) { if (strcmp(argv[1], "-?") == 0 || strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "-help") == 0) help();
                   return 0; }
-  int16_t w, h, ow, oh, ff; size_t size = SizeVram, ram, sc; if (!(ram = GetRam(&size))) return 0;
-  SWD(ram); InitVram(ram,size); SwitchRaw(); Delay_ms(0); ff = SyncSize(ram,0); w = TermCR(&h); sc = ((size*10)/1048576);
+  int16_t c, r, oc, or, ff; size_t size = SizeVram, ram, sc; if (!(ram = GetRam(&size))) return 0;
+  SWD(ram); InitVram(ram,size); SwitchRaw(); Delay_ms(0); ff = SyncSize(ram,0); c = TermCR(&r); sc = ((size*10)/1048576);
   printf(Reset HideCur WrapOff "%zu", sc); fflush(stdout); snprintf((char*)Cdata, 128, "%zu", size);
   while (1) {
-    if ((ff = SyncSize(ram,1))) { ow = w; oh = h; w = TermCR(&h); }
-    ff = ow + oh;
+    if ((ff = SyncSize(ram,1))) { oc = c; or = c; c = TermCR(&r); }
+    ff = oc + or;
     Delay_ms(20); const char* k = GetKey();
     if (k[0] == 27) {
         if (k[1] == K_NO) continue;
