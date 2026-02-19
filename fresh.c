@@ -69,8 +69,9 @@ void InitVram(size_t addr, size_t size) { if (!addr || (size < SizeVram)) return
             while(c) { ac = (Avdat + ((--c) << 5)); cbi = (c << 2) + i; ca = (*ac++ - 1);
                 dst = Parse(cbi); *dst++ = (lm + ca); MemCpy(dst, ac, ca); MemCpy(dst + ca, mode, lm); } } }
   
-typedef struct {int16_t X, Y, viewX, viewY, dX, dY; uint16_t oldRows, oldCols; uint8_t Vision, CodeKey, PenCK, Tic; } Cur_;
-Cur_ Cur = {30,0,0,0,1,1,0,0,0,0,0,0};
+typedef struct {int16_t X, Y, viewX, viewY, dX, dY; uint16_t oldRows, oldCols;
+                uint8_t Vision, CodeKey, PenCK, Tic, Free, Mkey, MX, MY; } Cur_;
+Cur_ Cur = {30,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0};
 void ShowC(void) {
   char *src, *dst = Avdat, *sav; uint8_t i,c;
   int16_t x = Cur.X + Cur.viewX + 1, y = Cur.Y + Cur.viewY + 1;
@@ -83,23 +84,39 @@ void ShowC(void) {
   *src++ = ' '; if (Cur.Vision) { sav = Parse(0); MemCpy(src, (sav + 1), *sav); src += *sav; }
   write (1, Avdat, (src - Avdat)); }
 void Cursor(void) {
-  uint16_t r, c = TermCR(&r);
+  uint16_t f = 0, r, c = TermCR(&r);
   if (c != Cur.oldCols || r != Cur.oldRows) {
+      if (Cur.X + Cur.viewX >= c || Cur.Y + Cur.viewY >= r || Cur.X + Cur.viewX < 0 || Cur.Y + Cur.viewY < 0) Cur.Vision = 0;
       if (Cur.X + Cur.viewX >= c) Cur.viewX = c - 1 - Cur.X;
+      else if (Cur.X + Cur.viewX < 0)  Cur.viewX = -Cur.X;
       if (Cur.Y + Cur.viewY >= r) Cur.viewY = r - 1 - Cur.Y;
-      Cur.oldCols = c; Cur.oldRows = r; Print(0, Cls); }
+      else if (Cur.Y + Cur.viewY < 0)  Cur.viewY = -Cur.Y;
+      Cur.oldCols = c; Cur.oldRows = r;
+      Print(0, Cls); }
   if (Cur.CodeKey != Cur.PenCK) { Cur.PenCK = Cur.CodeKey; Cur.Tic = 0; Cur.dX = 1; Cur.dY = 1; }
-  if ((Cur.CodeKey & 0xFC) == 0x20) { Cur.Tic++;
+  if ((Cur.CodeKey & 0xF8) == 0x20) { Cur.Tic++; f++;
       if ((Cur.Tic > 7) && !(Cur.Tic & 3) && (Cur.dX < 64)) { Cur.dX <<= 1; Cur.dY <<= 1; } }
   if (Cur.Vision) {  Cur.Vision = 0; ShowC(); }
-  if (Cur.CodeKey == K_LEF) Cur.X -= Cur.dX;
-  else if (Cur.CodeKey == K_RIG) Cur.X += Cur.dX;
-  else if (Cur.CodeKey == K_UP) Cur.Y -= Cur.dY;
-  else if (Cur.CodeKey == K_DOW) Cur.Y += Cur.dY;
-  if ((Cur.X + Cur.viewX) < 0) { Cur.viewX = - Cur.X; }
-  else if ((Cur.X + Cur.viewX) >= c) { Cur.viewX = c - 1 - Cur.X; }
-  if ((Cur.Y + Cur.viewY) < 0) { Cur.viewY = - Cur.Y; }
-  else if ((Cur.Y + Cur.viewY) >= r) { Cur.viewY = r - 1 - Cur.Y; } 
+  if (f) {
+      if (Cur.CodeKey == K_LEF) Cur.X -= Cur.dX;
+      else if (Cur.CodeKey == K_RIG) Cur.X += Cur.dX;
+      else if (Cur.CodeKey == K_UP) Cur.Y -= Cur.dY;
+      else if (Cur.CodeKey == K_DOW) Cur.Y += Cur.dY;
+      if (Cur.CodeKey == K_Ctrl_LEF) Cur.viewX -= Cur.dX;
+      else if (Cur.CodeKey == K_Ctrl_RIG) Cur.viewX += Cur.dX;
+      else if (Cur.CodeKey == K_Ctrl_UP) Cur.viewY -= Cur.dY;
+      else if (Cur.CodeKey == K_Ctrl_DOW) Cur.viewY += Cur.dY; }
+  if (Cur.Free) {
+      if ((Cur.X + Cur.viewX) < 0) { Cur.viewX = - Cur.X; }
+      else if ((Cur.X + Cur.viewX) >= c) { Cur.viewX = c - 1 - Cur.X; }
+      if ((Cur.Y + Cur.viewY) < 0) { Cur.viewY = - Cur.Y; }
+      else if ((Cur.Y + Cur.viewY) >= r) { Cur.viewY = r - 1 - Cur.Y; } }
+  else {
+      if (Cur.X + Cur.viewX < 0) Cur.X = -Cur.viewX;
+      else if (Cur.X + Cur.viewX >= c) Cur.X = c - 1 - Cur.viewX;
+      if (Cur.Y + Cur.viewY < 0) Cur.Y = -Cur.viewY;
+      else if (Cur.Y + Cur.viewY >= r) Cur.Y = r - 1 - Cur.viewY; }
+  if (Cur.CodeKey == K_Mouse && Cur.Mkey == 32) { Cur.X = Cur.MX - Cur.viewX; Cur.Y = Cur.MY - Cur.viewY; }
   Cur.Vision = 1; ShowC(); }
 
 void help(void) { Print(26,"Created by Alexey Pozdnyakov in 02.2026 version 2.19\n");
@@ -110,15 +127,17 @@ int main(int argc, char *argv[]) {
   SWD(ram); InitVram(ram,size); SwitchRaw(); Delay_ms(0); 
   if (argc > 1) { if (strcmp(argv[1], "-?") == 0 || strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "-help") == 0) help();
                   col--; }
-  if (col) { col = SyncSize(ram,0); Print(0,Reset HideCur Cls WrapOn);
+  if (col) { col = SyncSize(ram,0); Print(0,Reset HideCur WrapOff Cls MouseX10on);
     while (1) {
       if ((col = SyncSize(ram,1))) { col = 1; }
-      Print(0,"\033[H"); snprintf(Avdat, 128, "%d %d %d %d   ", TermCR(&col), col, Cur.X, Cur.Y); Print(28, Avdat);
       Delay_ms(20); const char* k = GetKey();
       if (k[0] == 27) {
         if (k[1] == K_NO) continue;
-        if (k[1] == K_ESC) break; }
+        if (k[1] == K_ESC) break;
+        if (k[1] == K_Mouse) { Cur.Mkey = (uint8_t)k[2]; Cur.MX = (uint8_t)k[3] - 33; Cur.MY = (uint8_t)k[4] - 33; } }
       if (k[0] == 27) Cur.CodeKey = k[1];
       else Cur.CodeKey = 0;
-      Cursor(); } }
-  SwitchRaw(); Print(0,ShowCur WrapOn Reset); FreeRam(ram, size); return 0; }
+      Cursor();
+      Print(0,Home); snprintf(Avdat, 128, "%d %d %d %d %d %d         \n", TermCR(&col), col, Cur.X + Cur.viewX, Cur.Y + Cur.viewY, Cur.MX, Cur.MY);
+      Print(20, Avdat); snprintf(Avdat, 128, "%d %d %d %d         ", Cur.X, Cur.viewX, Cur.Y, Cur.viewY); Print(28, Avdat); } }
+  SwitchRaw(); Print(0,MouseX10off WrapOn ShowCur Reset); FreeRam(ram, size); return 0; }

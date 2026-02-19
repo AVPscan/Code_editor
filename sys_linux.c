@@ -43,7 +43,6 @@ void MemSet(void* buf, uint8_t val, size_t len) {
         size_t i = len / SizeCell; len &= (SizeCell - 1); while (i--) *pW++ = vW;
         p = (uint8_t *)pW; }
     while (len--) *p++ = val; }
-
 void MemCpy(void* dst, const void* src, size_t len) {
     uint8_t *d = (uint8_t *)dst; const uint8_t *s = (const uint8_t *)src;
     while (len && ((Cell)d & (SizeCell - 1))) { *d++ = *s++; len--; }
@@ -52,7 +51,6 @@ void MemCpy(void* dst, const void* src, size_t len) {
         len &= (SizeCell - 1); while (i--) *dW++ = *sW++;
         d = (uint8_t *)dW; s = (uint8_t *)sW; }
     while (len--) *d++ = *s++ ; }
-
 void MemMove(void* dst, const void* src, size_t len) {
     if (dst > src) { uint8_t *d = (uint8_t *)dst; const uint8_t *s = (const uint8_t *)src;
         d += len; s += len; while (len && ((Cell)d & (SizeCell - 1))) { *--d = *--s; len--; }
@@ -61,11 +59,10 @@ void MemMove(void* dst, const void* src, size_t len) {
             len &= (SizeCell - 1); while (i--) *--dW = *--sW;
             d = (uint8_t *)dW; s = (uint8_t *)sW; } }
     else if (dst < src ) MemCpy(dst, src, len); }
-    
 int8_t MemCmp(void* dst, const void* src, size_t len) {
     uint8_t *d = (uint8_t *)dst; const uint8_t *s = (const uint8_t *)src;
     while (len && ((Cell)d & (SizeCell - 1))) { if (*d != *s) return (int8_t)(*d - *s);
-                                                 d++; s++; len--; }
+                                                d++; s++; len--; }
     if (len >= SizeCell && ((Cell)s & (SizeCell - 1)) == 0) {
         Cell *dW = (Cell *)d; const Cell *sW = (const Cell *)s; size_t i = len / SizeCell;
         len &= (SizeCell - 1); while (i-- && (*dW == *sW)) { dW++; sW++; }
@@ -75,22 +72,21 @@ int8_t MemCmp(void* dst, const void* src, size_t len) {
                     d++; s++ ; }
     return 0; }
 
+typedef struct { const char *name; unsigned char id; } KeyIdMap;
+KeyIdMap NameId[] = { {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
+    {"[1;5A", K_Ctrl_UP}, {"[1;5B", K_Ctrl_DOW}, {"[1;5C", K_Ctrl_RIG}, {"[1;5D", K_Ctrl_LEF},
+    {"[M", K_Mouse}, {"[1;2P", K_F13}, {"[1;2Q", K_F14}, {"[1;2R", K_F15}, {"[15~", K_F5}, {"[17~", K_F6},
+    {"[18~", K_F7}, {"[19~", K_F8}, {"[1~", K_HOM}, {"[2~", K_INS}, {"[20~", K_F9}, {"[21~", K_F10},
+    {"[23~", K_F11}, {"[24~", K_F12},  {"[3~", K_DEL}, {"[4~", K_END}, {"[5~", K_PUP}, {"[6~", K_PDN},
+    {"[F", K_END}, {"[H", K_HOM}, {"OP", K_F1}, {"OQ", K_F2}, {"OR", K_F3}, {"OS", K_F4} };
 void SwitchRaw(void) {
     static struct termios oldt; static uint8_t flag = 1;
     if (flag) {
         tcgetattr(0, &oldt); struct termios newt = oldt; newt.c_lflag &= ~(ICANON | ECHO | ISIG);
         tcsetattr(0, TCSANOW, &newt); fcntl(0, F_SETFL, O_NONBLOCK); flag = 0; } 
     else { tcsetattr(0, TCSANOW, &oldt); fcntl(0, F_SETFL, 0); flag = 1; } }
-typedef struct { const char *name; unsigned char id; } KeyIDMap;
-KeyIDMap nameid[] = {
-    {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
-    {"[H", K_HOM}, {"[F", K_END}, {"[1~", K_HOM}, {"[4~", K_END},
-    {"[2~", K_INS}, {"[3~", K_DEL}, {"[5~", K_PUP}, {"[6~", K_PDN},
-    {"OP", K_F1}, {"OQ", K_F2}, {"OR", K_F3}, {"OS", K_F4},
-    {"[15~", K_F5}, {"[17~", K_F6}, {"[18~", K_F7}, {"[19~", K_F8},
-    {"[20~", K_F9}, {"[21~", K_F10}, {"[23~", K_F11}, {"[24~", K_F12} };
 const char* GetKey(void) {
-    static unsigned char b[6]; unsigned char *p = b; int len = 6; while (len) b[--len] = 0;
+    static unsigned char b[6]; unsigned char *p = b; uint8_t len = 6; while (len) b[--len] = 0;
     if (read(0, p, 1) <= 0) { *p = 27; return (char*)b; }
     unsigned char c = *p; if (c > 127) {
         len = (c >= 0xF0) ? 4 : (c >= 0xE0) ? 3 : (c >= 0xC0) ? 2 : 1;
@@ -98,22 +94,20 @@ const char* GetKey(void) {
         return (char*)b; }
     if (c > 31 && c < 127) return (char*)b;
     *p++ = 27; *p = c; if (c != 27) return (char*)b; 
-    unsigned char *s1; const unsigned char *s2; if (read(0, p, 1) > 0) {
-        s1 = p; len = 3; while (len-- && read(0, ++s1, 1) > 0);
-        s1++; while (read(0, s1, 1) > 0) if (*s1 >= 64) break; 
-        *s1 = 0; if (*p < 32 || (*p != '[' && *p != 'O')) { *p = 0; return (char*)b; }
-        int j = (int)(sizeof(nameid)/sizeof(KeyIDMap));
-        while(j--) { s1 = p; s2 = (const unsigned char*)nameid[j].name;
-            while (*s1 && *s1 == *s2) { s1++; s2++; }
-            if (*s1 == '\0' && *s2 == '\0') { *p++ = nameid[j].id; *p = 0; break; } }
-        if (j < 0) b[1] = 0; }
+    unsigned char *s1; const unsigned char *s2; int8_t j = (int)(sizeof(NameId)/sizeof(KeyIdMap));
+    if (read(0, p, 1) > 0) { s1 = p; while (s1 - p < 5 && read(0, ++s1, 1) > 0) if (*s1 >= 64) break; 
+        if (*p < 32 || (*p != '[' && *p != 'O')) { *p = 0; return (char*)b; }
+        while(j--) { s1 = p; s2 = (const unsigned char*)NameId[j].name;
+            while (*s2 && *s1 == *s2) { s1++; s2++; }
+            if (*s1 == '\0' && *s2 == '\0') { *p++ = NameId[j].id; *p = 0; break; } }
+        if (j < 0) b[1] = 0; 
+        if (b[1] == K_Mouse) { len = 4; while(--len) read(0, p++, 1); } }
     return (char*)b; }
 
 uint64_t GetCycles(void) {
     union { uint64_t total; struct { uint32_t lo, hi; } part; } t;
     __asm__ __volatile__ ("rdtsc" : "=a" (t.part.lo), "=d" (t.part.hi));
     return t.total; }
-
 void Delay_ms(uint8_t ms) {
     static uint64_t cpu_hz = 0;
     if (cpu_hz == 0) { struct timespec ts = {0, 10000000L}; uint64_t start = GetCycles();
@@ -129,7 +123,6 @@ void Delay_ms(uint8_t ms) {
 typedef struct { uint16_t col , row; } TermState;
 TermState TS = {0};
 uint16_t TermCR(uint16_t *r) { *r = TS.row; return TS.col; }
-
 int SyncSize(size_t addr, uint8_t flag) { if (!addr) return 0;
     struct winsize ws, cur; if (ioctl(0, TIOCGWINSZ, &ws) < 0) return 0;
     if (ws.ws_col == TS.col && ws.ws_row == TS.row) return 0;
@@ -150,7 +143,6 @@ size_t GetRam(size_t *size) { if (!*size) return 0;
     size_t l = (*size + 0xFFF) & ~0xFFF; void *r = mmap(0, l, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (r == MAP_FAILED) { r = 0; l = 0; }
     *size = l; return (size_t)r; }
-
 void FreeRam(size_t addr, size_t size) { if (addr) munmap((void*)addr, size); }
 
 void SWD(size_t addr) { if (!addr) return;
@@ -183,7 +175,6 @@ int8_t UTFinfo(unsigned char *s, uint8_t *len) {
         (cp >= 0xFFE0 && cp <= 0xFFE6) || (cp >= 0x20000 && cp <= 0x2FFFD) || (cp >= 0x30000 && cp <= 0x3FFFD) ||
         (cp >= 0x1F300)) return 2;
     return 1; }
-
 int8_t UTFinfoTile(unsigned char *s, uint8_t *len, size_t rem) {
     *len = 0; if (rem == 0) return -3;
     *len = 1;

@@ -60,6 +60,7 @@
 #define ColorOff    "\033[39m"      // Сбросить только цвет
 #define Reset       "\033[0m"       // СБРОСИТЬ ВСЁ (и цвета, и режимы)
 
+#define Home        "\033[H"        // В начало экрана
 #define HideCur     "\033[?25l"     // Скрыть курсор
 #define ShowCur     "\033[?25h"     // Показать курсор
 #define Cls         "\033[2J\033[H" // Очистить экран и в начало
@@ -69,15 +70,19 @@
 #define ClearLine   "\033[K"        // Очистить строку от курсора до конца
 #define WrapOn      "\033[?7h"      // Включить перенос длинных строк
 #define WrapOff     "\033[?7l"      // Выключить перенос строк
+#define MouseX10on  "\033[?1000h"   // Включаем мышь
+#define MouseX10off "\033[?1000l"
 
 typedef uintptr_t Cell;
 #define SizeCell sizeof(Cell)
 
-enum { K_NO, K_CRA, K_CRB, K_CRC, K_CRD, K_CRE, K_CRF, K_CRG,
-    K_DEL, K_TAB, K_LF,  K_CRK, K_CRL, K_ENT, K_CRN, K_CRO, K_CRP, K_CRQ, K_CRR, K_CRS, K_CRT, K_CRU,
-    K_CRV, K_CRW, K_CRX, K_CRY, K_CRZ, K_ESC, K_FS, K_GS, K_RS, K_US,
-    K_UP, K_DOW, K_RIG, K_LEF, K_HOM, K_END, K_PUP, K_PDN, K_INS,
-    K_F1, K_F2, K_F3, K_F4, K_F5, K_F6, K_F7, K_F8, K_F9, K_F10, K_F11, K_F12, K_BAC = 127 };
+enum { K_NO, K_Ctrl_A, K_Ctrl_B, K_Ctrl_C, K_Ctrl_D, K_Ctrl_E, K_Ctrl_F, K_Ctrl_G,
+    K_DEL, K_TAB, K_LF,  K_Ctrl_K, K_Ctrl_L, K_ENT, K_Ctrl_N, K_Ctrl_O, K_Ctrl_P,
+    K_Ctrl_Q, K_Ctrl_R, K_Ctrl_S, K_Ctrl_T, K_Ctrl_U, K_Ctrl_V, K_Ctrl_W, K_Ctrl_X,
+    K_Ctrl_Y, K_Ctrl_Z, K_ESC, K_FS, K_GS, K_RS, K_US, K_UP, K_Ctrl_UP, K_DOW, K_Ctrl_DOW,
+    K_RIG, K_Ctrl_RIG, K_LEF, K_Ctrl_LEF, K_Mouse, K_HOM, K_END, K_PUP, K_PDN, K_INS,
+    K_F1, K_F2, K_F3, K_F4, K_F5, K_F6, K_F7, K_F8, K_F9, K_F10, K_F11, K_F12, K_F13, K_F14, K_F15, K_BAC = 127 };
+
 void* os_open_file(const char* name);
 void* os_create_file(const char* name);
 void  os_close_file(void* handle);
