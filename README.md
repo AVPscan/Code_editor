@@ -1,4 +1,5 @@
 [![Build on Linux](https://github.com/AVPscan/Code_editor/actions/workflows/Build%20on%20Linux.yml/badge.svg)](https://github.com/AVPscan/Code_editor/actions/workflows/Build%20on%20Linux.yml)
+[![Build on macOS](https://github.com/AVPscan/Fresh/actions/workflows/Build%20on%20macos.yml/badge.svg)](https://github.com/AVPscan/Fresh/actions/workflows/Build%20on%20macos.yml)
 [![Linux musl static +(Cross-Platform)](https://github.com/AVPscan/Code_editor/actions/workflows/release.yml/badge.svg)](https://github.com/AVPscan/Code_editor/actions/workflows/release.yml)
 
 # Fresh (Terminal Engine v2.21)
