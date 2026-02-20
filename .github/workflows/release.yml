@@ -72,36 +72,47 @@ jobs:
           path: fresh
 
   # --- СОЗДАНИЕ РЕЛИЗА И ЗАГРУЗКА ВСЕХ ФАЙЛОВ ---
-  create-release:
-    needs: [build-linux, build-windows, build-macos]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Get version
-        id: get_version
-        run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./dist
-
-      - name: Create Release and Upload Assets
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VER: ${{ steps.get_version.outputs.version }}
-        run: |
-          TAG="v$VER"
-          gh release create "$TAG" \
-            ./dist/linux-bin/fresh#Fresh-linux-musl-$TAG \
-            ./dist/windows-bin/fresh.exe#Fresh-windows-$TAG.exe \
-            ./dist/macos-bin/fresh#Fresh-macos-$TAG \
-            --title "Release $TAG" \
-            --generate-notes \
-            --latest
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          release_name: Release v${{ steps.get_version.outputs.version }}
+          draft: false
+          prerelease: false
+
+      # 1. Загрузка Linux (из папки linux-bin)
+      - name: Upload Linux Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artefacts/linux-bin/fresh
+          asset_name: Fresh-linux-musl-v${{ steps.get_version.outputs.version }}
+          asset_content_type: application/octet-stream
+
+      # 2. Загрузка Windows (из папки windows-bin)
+      - name: Upload Windows Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artefacts/windows-bin/fresh.exe
+          asset_name: Fresh-windows-v${{ steps.get_version.outputs.version }}.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
+
+      # 3. Загрузка MacOS (из папки macos-bin)
+      - name: Upload MacOS Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artefacts/macos-bin/fresh
+          asset_name: Fresh-macos-v${{ steps.get_version.outputs.version }}
+          asset_content_type: application/octet-stream
+
