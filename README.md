@@ -1,7 +1,7 @@
 [![Build on Linux](https://github.com/AVPscan/Code_editor/actions/workflows/Build%20on%20Linux.yml/badge.svg)](https://github.com/AVPscan/Code_editor/actions/workflows/Build%20on%20Linux.yml)
 [![Linux musl static +(Cross-Platform)](https://github.com/AVPscan/Code_editor/actions/workflows/release.yml/badge.svg)](https://github.com/AVPscan/Code_editor/actions/workflows/release.yml)
 
-# 🌀 FreshVRAM (ex Balidan): Universal Terminal Monolith
+# 🌀  Zero-Dependency, High-Performance & Self-Sovereign Code
 > **Пишется и ViewPort + MouseX10(а другие и не надо) уже работают**
 
 **Автор:** Алексей Васильевич Поздняков ([avp70ru@mail.ru](mailto:avp70ru@mail.ru))  

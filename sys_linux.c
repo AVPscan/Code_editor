@@ -100,7 +100,7 @@ const char* GetKey(void) {
         while(j--) { s2 = (const unsigned char*)NameId[j].name;
             if (*p != *s2) continue;
             s1 = p; while (*++s1 == *++s2 && *s2);
-            if (*s1 == '\0' && *s2 == '\0') { *p++ = NameId[j].id; *p = 0; break; } }
+            if (!*s2) { *p++ = NameId[j].id; *p = 0; break; } }
         if (j < 0) b[1] = 0; 
         if (b[1] == K_Mouse) { len = 4; while(--len) read(0, p++, 1); } }
     return (char*)b; }
@@ -148,8 +148,8 @@ void FreeRam(size_t addr, size_t size) { if (addr) munmap((void*)addr, size); }
 
 void SWD(size_t addr) { if (!addr) return;
     char *path = (char *)(addr); ssize_t len = readlink("/proc/self/exe", path, 1024); if (len <= 0) return;
-    path[len] = '\0'; if (strncmp(path, "/nix/store", 10) == 0) {
-                          const char *home = getenv("HOME"); if (home != NULL) chdir(home);
+    path[len] = '\0'; if (strncmp(path, "/nix/store", 10) == 0) { const char *home = getenv("HOME");
+                          if (home != NULL) chdir(home);
                           return; }
     for (char *p = path + len; p > path; p--) if (*p == '/') { *p = '\0'; chdir(path); break; } }
     
@@ -168,13 +168,12 @@ int8_t UTFinfo(unsigned char *s, uint8_t *len) {
     if ((cp >= 0x0300 && cp <= 0x036F) || (cp >= 0x1DC0 && cp <= 0x1DFF) || (cp >= 0x20D0 && cp <= 0x20FF) ||
         (cp == 0x200D || (cp >= 0xFE00 && cp <= 0xFE0F))) return 0; // прилепало
     if (cp == 0 || cp < 32 || (cp >= 0x7F && cp < 0xA0)) return -1; // управляющие
-    if (cp < 256) return 1;
+    if (cp < 0x100) return 1;
     if (cp == 0x200B || cp == 0x200C || cp == 0x200E || cp == 0x200F || (cp >= 0xFE20 && cp <= 0xFE2F) || (cp >= 0xE0100 && cp <= 0xE01EF)) return 0;
-    if ((cp >= 0x1100 && cp <= 0x115F) || (cp == 0x2329 || cp == 0x232A) ||
-        (cp >= 0x2E80 && cp <= 0xA4CF && cp != 0x303F) || (cp >= 0xAC00 && cp <= 0xD7A3) || (cp >= 0xF900 && cp <= 0xFAFF) ||
-        (cp >= 0xFE10 && cp <= 0xFE19) || (cp >= 0xFE30 && cp <= 0xFE6F) || (cp >= 0xFF00 && cp <= 0xFF60) ||
-        (cp >= 0xFFE0 && cp <= 0xFFE6) || (cp >= 0x20000 && cp <= 0x2FFFD) || (cp >= 0x30000 && cp <= 0x3FFFD) ||
-        (cp >= 0x1F300)) return 2;
+    if ((cp >= 0x1100 && cp <= 0x115F) || (cp == 0x2329 || cp == 0x232A) || (cp >= 0x2E80 && cp <= 0xA4CF && cp != 0x303F) || 
+        (cp >= 0xAC00 && cp <= 0xD7A3) || (cp >= 0xF900 && cp <= 0xFAFF) || (cp >= 0xFE10 && cp <= 0xFE19) || 
+        (cp >= 0xFE30 && cp <= 0xFE6F) || (cp >= 0xFF00 && cp <= 0xFF60) || (cp >= 0xFFE0 && cp <= 0xFFE6) || 
+        (cp >= 0x20000 && cp <= 0x2FFFD) || (cp >= 0x30000 && cp <= 0x3FFFD) || (cp >= 0x1F300)) return 2;
     return 1; }
 int8_t UTFinfoTile(unsigned char *s, uint8_t *len, size_t rem) {
     *len = 0; if (rem == 0) return -3;
