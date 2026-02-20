@@ -103,8 +103,8 @@ void MemSet(void* buf, uint8_t val, size_t len);
 void MemCpy(void* dst, const void* src, size_t len);
 int8_t MemCmp(void* dst, const void* src, size_t len);
 void MemMove(void* dst, const void* src, size_t len);
-int8_t UTFinfo(unsigned char *s, uint8_t *len);
-int8_t UTFinfoTile(unsigned char *s, uint8_t *len, size_t rem);
+int8_t UTFinfo(unsigned char *s, uint8_t *len, uint8_t *Mrtl);
+int8_t UTFinfoTile(unsigned char *s, uint8_t *len, uint8_t *Mrtl, size_t rem);
 
 int SystemSwitch(void);
 void SetColour(uint8_t col);
@@ -112,14 +112,14 @@ void ViewPort(const char* key);
 
 void SwitchRaw(void);
 const char* GetKey(void);
-uint64_t GetCycles(void);
-void Delay_ms(uint8_t ms);
-uint16_t TermCR(uint16_t *r);
-int16_t SyncSize(size_t addr, uint8_t flag);
-int GetSC(size_t addr);
 size_t GetRam(size_t *size);
 void FreeRam(size_t addr, size_t size);
 void SWD(size_t addr);
+uint16_t TermCR(uint16_t *r);
+int16_t SyncSize(size_t addr, uint8_t flag);
+uint64_t GetCycles(void);
+void Delay_ms(uint8_t ms);
+int GetSC(size_t addr);
 
 char* TakeTb(size_t *size);
 void Getlib(int16_t *x1, int16_t *x2, int16_t *x3, int16_t *x4, int16_t *x5, int16_t *x6, int16_t *x7, int16_t *x8, int16_t *x9);

@@ -7,7 +7,6 @@
  * лицензии GNU (GPLv3).
  */
  
-#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,31 +16,36 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <sys/ioctl.h>   
 #include <sys/mman.h>
-#include <sys/ioctl.h>
+#include <mach-o/dyld.h>    // Для _NSGetExecutablePath
+#include <mach/mach_time.h> // Для mach_absolute_time
+
 #include "sys.h"
 
 void* os_open_file(const char* name) { return (void*)fopen(name, "rb"); }
 void* os_create_file(const char* name) { return (void*)fopen(name, "wb"); }
-void  os_close_file(void* handle) { if (handle) fclose((FILE*)handle); }
-int   os_read_file(void* handle, unsigned char* buf, int len) { if (!handle) return 0;
+void os_close_file(void* handle) { if (handle) fclose((FILE*)handle); }
+int os_read_file(void* handle, unsigned char* buf, int len) { if (!handle) return 0;
     return (int)fread(buf, 1, len, (FILE*)handle); }
-int   os_read_file_at(void* handle, long offset, unsigned char* buf, int len) { if (!handle) return 0;
+int os_read_file_at(void* handle, long offset, unsigned char* buf, int len) { if (!handle) return 0;
     FILE* f = (FILE*)handle; if (fseek(f, offset, SEEK_SET) != 0) return 0;
     return (int)fread(buf, 1, len, f); }
-int   os_print_file(void* handle, const char* format, ...) { if (!handle) return 0;
-    va_list args; va_start(args, format); int res = vfprintf((FILE*)handle, format, args); va_end(args); return res; }
-int   os_snprintf(char* buf, size_t size, const char* format, ...) {
-    va_list args; va_start(args, format); int res = vsnprintf(buf, size, format, args); va_end(args); return res; }
-void   os_printf(const char* format, ...) {
+int os_print_file(void* handle, const char* format, ...) { if (!handle) return 0;
+    va_list args; va_start(args, format);int res = vfprintf((FILE*)handle, format, args);
+    va_end(args); return res; }
+int os_snprintf(char* buf, size_t size, const char* format, ...) {
+    va_list args; va_start(args, format); int res = vsnprintf(buf, size, format, args);
+    va_end(args); return res; }
+void os_printf(const char* format, ...) {
     va_list args; va_start(args, format); vprintf(format, args); va_end(args); }
 
-void SwitchRaw(void) {
+void SwitchRaw(void) { 
     static struct termios oldt; static uint8_t flag = 1;
     if (flag) {
         tcgetattr(0, &oldt); struct termios newt = oldt; newt.c_lflag &= ~(ICANON | ECHO | ISIG);
-        tcsetattr(0, TCSANOW, &newt); fcntl(0, F_SETFL, O_NONBLOCK); flag = 0; } 
-    else { tcsetattr(0, TCSANOW, &oldt); fcntl(0, F_SETFL, 0); flag = 1; } }
+        tcsetattr(0, TCSANOW, &newt);fcntl(0, F_SETFL, O_NONBLOCK); flag = 0; } 
+    else { tcsetattr(0, TCSANOW, &oldt); fcntl(0, F_SETFL, 0); flag = 1; } } 
 typedef struct { const char *name; unsigned char id; } KeyIdMap;
 KeyIdMap NameId[] = { {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
     {"[1;5A", K_Ctrl_UP}, {"[1;5B", K_Ctrl_DOW}, {"[1;5C", K_Ctrl_RIG}, {"[1;5D", K_Ctrl_LEF},
@@ -76,10 +80,8 @@ size_t GetRam(size_t *size) { if (!*size) return 0;
 void FreeRam(size_t addr, size_t size) { if (addr) munmap((void*)addr, size); }
 
 void SWD(size_t addr) { if (!addr) return;
-    char *path = (char *)(addr); ssize_t len = readlink("/proc/self/exe", path, 1024); if (len <= 0) return;
-    path[len] = '\0'; if (strncmp(path, "/nix/store", 10) == 0) { const char *home = getenv("HOME");
-                          if (home != NULL) chdir(home);
-                          return; }
+    uint32_t len = 4096; char *path = (char *)(addr);
+    if (_NSGetExecutablePath(path, &len) != 0) return;
     for (char *p = path + len; p > path; p--) if (*p == '/') { *p = '\0'; chdir(path); break; } }
 
 typedef struct { uint16_t col , row; } TermState;
@@ -94,24 +96,21 @@ int16_t SyncSize(size_t addr, uint8_t flag) { if (!addr) return 0;
             if (ioctl(0, TIOCGWINSZ, &cur) >= 0) if (cur.ws_col != ws.ws_col || cur.ws_row != ws.ws_row) { ws = cur; stable = 100; } } }
     TS.col = ws.ws_col; TS.row = ws.ws_row; return 1; }
 
-uint64_t GetCycles(void) {
-    union { uint64_t total; struct { uint32_t lo, hi; } part; } t;
-    __asm__ __volatile__ ("rdtsc" : "=a" (t.part.lo), "=d" (t.part.hi));
-    return t.total; }
+uint64_t GetCycles(void) { return mach_absolute_time(); }
 void Delay_ms(uint8_t ms) {
     static uint64_t cpu_hz = 0;
     if (cpu_hz == 0) { struct timespec ts = {0, 10000000L}; uint64_t start = GetCycles();
         nanosleep(&ts, NULL); cpu_hz = (GetCycles() - start) * 100; if (cpu_hz == 0) cpu_hz = 1; }
     uint64_t total_cycles = (uint64_t)ms * (cpu_hz / 1000); uint64_t start_time = GetCycles();
     if (ms > 2) { struct timespec sleep_ts = {0, (ms - 1) * 1000000L}; nanosleep(&sleep_ts, NULL); }
-    struct timespec check_start; clock_gettime(CLOCK_MONOTONIC_COARSE, &check_start); uint32_t safety = 0;
-    while ((GetCycles() - start_time) < total_cycles) { __asm__ volatile("pause");
-        if (++safety > 2000) { struct timespec now; clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
+    struct timespec check_start; clock_gettime(CLOCK_MONOTONIC_RAW, &check_start); uint32_t safety = 0;
+    while ((GetCycles() - start_time) < total_cycles) { __asm__ volatile("yield");
+        if (++safety > 2000) { struct timespec now; clock_gettime(CLOCK_MONOTONIC_RAW, &now);
                                if (now.tv_sec > check_start.tv_sec) { cpu_hz = 0; break; }
                                safety = 0; } } }
 int GetSC(size_t addr) { if (!addr || !TS.col) return 1;
     struct timespec cs, ce; char *p = (char *)(addr); MemSet(p, ' ', TS.col - 1); p[TS.col - 1] = '\r';
-    clock_gettime(CLOCK_MONOTONIC, &cs);
+    clock_gettime(CLOCK_MONOTONIC_RAW, &cs);
     for(int i = 0; i < 100; i++) write(1, p, TS.col);
-    clock_gettime(CLOCK_MONOTONIC, &ce); 
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ce); 
     long long ns = (ce.tv_sec - cs.tv_sec) * 1000000000LL + (ce.tv_nsec - cs.tv_nsec); return (int)((ns * 1000) / (TS.col * 100)); }

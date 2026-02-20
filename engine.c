@@ -84,8 +84,8 @@ int8_t MemCmp(void* dst, const void* src, size_t len) {
                     d++; s++ ; }
     return 0; }
     
-int8_t UTFinfo(unsigned char *s, uint8_t *len) {
-    unsigned char c = s[0]; uint32_t cp = 0xFFFD; *len = 1;
+int8_t UTFinfo(unsigned char *s, uint8_t *len, uint8_t *Mrtl) {
+    unsigned char c = s[0]; uint32_t cp = 0xFFFD; *len = 1; *Mrtl = 0;
     if (c < 0x80) cp = (uint32_t) c;
     else if ((c & 0xE0) == 0xC0 && (s[1] & 0xC0) == 0x80)
             { *len = 2; cp = ((c & 0x1F) << 6) | (s[1] & 0x3F); }
@@ -96,6 +96,7 @@ int8_t UTFinfo(unsigned char *s, uint8_t *len) {
     else return -2;
     if ((*len == 2 && cp < 0x80) || (*len == 3 && (cp < 0x800 || (cp >= 0xD800 && cp <= 0xDFFF))) || 
         (*len == 4 && (cp < 0x10000 || cp > 0x10FFFF))) return -2;  // битый
+    if (cp >= 0x0590 && cp <= 0x08FF) *Mrtl = 1;
     if ((cp >= 0x0300 && cp <= 0x036F) || (cp >= 0x1DC0 && cp <= 0x1DFF) || (cp >= 0x20D0 && cp <= 0x20FF) ||
         (cp == 0x200D || (cp >= 0xFE00 && cp <= 0xFE0F))) return 0; // прилепало
     if (cp == 0 || cp < 32 || (cp >= 0x7F && cp < 0xA0)) return -1; // управляющие
@@ -106,13 +107,13 @@ int8_t UTFinfo(unsigned char *s, uint8_t *len) {
         (cp >= 0xFE30 && cp <= 0xFE6F) || (cp >= 0xFF00 && cp <= 0xFF60) || (cp >= 0xFFE0 && cp <= 0xFFE6) || 
         (cp >= 0x20000 && cp <= 0x2FFFD) || (cp >= 0x30000 && cp <= 0x3FFFD) || (cp >= 0x1F300)) return 2;
     return 1; }
-int8_t UTFinfoTile(unsigned char *s, uint8_t *len, size_t rem) {
-    *len = 0; if (rem == 0) return -3;
+int8_t UTFinfoTile(unsigned char *s, uint8_t *len, uint8_t *Mrtl, size_t rem) {
+    *len = 0; *Mrtl = 0; if (rem == 0) return -3;
     *len = 1;
     if ((*s & 0xE0) == 0xC0 && rem < 2) return -3;
     else if ((*s & 0xF0) == 0xE0 && rem < 3) return -3; // не влез
     else if ((*s & 0xF8) == 0xF0 && rem < 4) return -3;
-    return UTFinfo(s, len); }
+    return UTFinfo(s, len, Mrtl); }
     
 typedef struct { size_t addr, size; } Vram_;
 Vram_ VRam = {0};
