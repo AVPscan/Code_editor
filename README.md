@@ -3,9 +3,9 @@
 [![Build on Windows](https://github.com/AVPscan/Fresh/actions/workflows/Build%20on%20windows.yml/badge.svg)](https://github.com/AVPscan/Fresh/actions/workflows/Build%20on%20windows.yml)
 [![Linux musl static +(Cross-Platform)](https://github.com/AVPscan/Code_editor/actions/workflows/release.yml/badge.svg)](https://github.com/AVPscan/Code_editor/actions/workflows/release.yml)
 
-# Fresh (Terminal Engine v2.21)
+# Fresh
 
-**Fresh** — это сверхлегкий и высокопроизводительный движок для создания интерактивных терминальных интерфейсов (TUI) с прямым управлением видеопамятью (VRAM) и асинхронным вводом.
+**Fresh** —  Данный системный инструмент разработан для высокопроизводительных вычислений; используйте его в рамках лицензии GPLv3.
 
 Проект написан на чистом C без использования внешних библиотек (ncurses и др.), что делает его идеальным для встраиваемых систем, высоконагруженных утилит и кросс-платформенного системного ПО.
 
