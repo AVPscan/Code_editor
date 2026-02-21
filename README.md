@@ -37,7 +37,7 @@
 
 **Поздняков Алексей Васильевич**  
 E-mail: [avp70ru@mail.ru](mailto:avp70ru@mail.ru)  
-GitHub: [AVPscan](https://github.com)
+GitHub: [AVPscan](https://github.com/AVPscan)
 
 ---
 *Данное программное обеспечение распространяется под лицензией GNU GPLv3.*
