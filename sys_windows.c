@@ -16,15 +16,15 @@
 
 void SwitchRaw(void) {
     HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE); HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    static DWORD oldModeIn, oldModeOut; static uint8_t flag = 1;
+    static DWORD oldModeIn, oldModeOut; static uint8_t flag = 1;   
     if (flag) {
-        SetConsoleCP(CP_UTF8); SetConsoleOutputCP(CP_UTF8); GetConsoleMode(hIn, &oldModeIn);
-        GetConsoleMode(hOut, &oldModeOut); DWORD newModeIn = oldModeIn;
-        newModeIn &= ~(ENABLE_QUICK_EDIT_MODE | ENABLE_WINDOW_INPUT | ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT);
-        newModeIn |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_VIRTUAL_TERMINAL_INPUT;
-        SetConsoleMode(hIn, newModeIn); SetConsoleMode(hOut, oldModeOut | ENABLE_VIRTUAL_TERMINAL_PROCESSING); flag = 0; }
-    else {
-        FlushConsoleInputBuffer(hIn); SetConsoleMode(hIn, oldModeIn); SetConsoleMode(hOut, oldModeOut); flag = 1; } }
+        SetConsoleCP(CP_UTF8); SetConsoleOutputCP(CP_UTF8);
+        GetConsoleMode(hIn, &oldModeIn); GetConsoleMode(hOut, &oldModeOut);
+        DWORD newModeIn = ENABLE_VIRTUAL_TERMINAL_INPUT;  // Для стрелок, F1-F12
+        newModeIn |= ENABLE_EXTENDED_FLAGS;               // Чтобы отключить QuickEdit
+        SetConsoleMode(hIn, newModeIn);                   // ПРИМЕНЯЕМ режимы ввода
+        SetConsoleMode(hOut, oldModeOut | ENABLE_VIRTUAL_TERMINAL_PROCESSING); flag = 0; }
+    else { SetConsoleMode(hIn, oldModeIn); SetConsoleMode(hOut, oldModeOut); flag = 1; } }
 
 typedef struct { const char *name; unsigned char id; } KeyIdMap;
 KeyIdMap NameId[] = { {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
@@ -38,7 +38,10 @@ const char* GetKey(void) {
     HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE); DWORD events = 0;
     GetNumberOfConsoleInputEvents(hIn, &events);
     if (events == 0) { *p = 27; return (char*)b; }
-    _read(0, p, 1); unsigned char c = *p; if (c > 127) {
+    _read(0, p, 1); if (*p == 27) { events = 0;
+        GetNumberOfConsoleInputEvents(hIn, &events);
+        if (events == 0) { *++p = 27; return (char*)b; } }
+    unsigned char c = *p; if (c > 127) {
         len = (c >= 0xF0) ? 4 : (c >= 0xE0) ? 3 : (c >= 0xC0) ? 2 : 1;
         while (--len) _read(0, ++p, 1);
         return (char*)b; }
@@ -92,11 +95,22 @@ uint64_t GetCycles(void) {
     __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
     return ((uint64_t)hi << 32) | lo; }
 void Delay_ms(uint8_t ms) {
-    static LARGE_INTEGER freq; static int init = 0;
+    static LARGE_INTEGER freq; static uint64_t cpu_hz = 0; static int init = 0;
     if (!init) { QueryPerformanceFrequency(&freq); init = 1; }
-    LARGE_INTEGER start, end; QueryPerformanceCounter(&start);
-    int64_t target = start.QuadPart + (ms * freq.QuadPart / 1000); if (ms > 1) Sleep(ms - 1);
-    do { __asm__ volatile("pause"); QueryPerformanceCounter(&end); } while (end.QuadPart < target); }
+    if (cpu_hz == 0) { LARGE_INTEGER start, end, qpc_start, qpc_end; QueryPerformanceCounter(&qpc_start);
+        start = qpc_start; Sleep(10); QueryPerformanceCounter(&qpc_end);
+        uint64_t ns = (uint64_t)((qpc_end.QuadPart - qpc_start.QuadPart) * 1000000000ULL / freq.QuadPart);
+        uint64_t cycles = GetCycles() - (uint64_t)start.QuadPart; cpu_hz = (cycles * 1000000000ULL) / ns;
+        if (cpu_hz == 0) cpu_hz = 1; }
+    uint64_t total_cycles = (uint64_t)ms * (cpu_hz / 1000); uint64_t start_time = GetCycles();
+    if (ms > 2) Sleep(ms - 1);
+    LARGE_INTEGER check_start, now; QueryPerformanceCounter(&check_start); uint32_t safety = 0;
+    while ((GetCycles() - start_time) < total_cycles) {
+        __asm__ volatile("pause");
+        if (++safety > 2000) {
+            QueryPerformanceCounter(&now);
+            if (now.QuadPart - check_start.QuadPart > freq.QuadPart) { cpu_hz = 0; break; }
+            safety = 0; } } }
 
 int GetSC(size_t addr) { 
     if (!addr || !TS.col) return 1;

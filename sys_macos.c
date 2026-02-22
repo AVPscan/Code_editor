@@ -75,18 +75,29 @@ int16_t SyncSize(size_t addr, uint8_t flag) { if (!addr) return 0;
             if (ioctl(0, TIOCGWINSZ, &cur) >= 0) if (cur.ws_col != ws.ws_col || cur.ws_row != ws.ws_row) { ws = cur; stable = 100; } } }
     TS.col = ws.ws_col; TS.row = ws.ws_row; return 1; }
 
+static mach_timebase_info_data_t timebase = {0};
+static uint64_t cpu_hz = 0;
 uint64_t GetCycles(void) { return mach_absolute_time(); }
 void Delay_ms(uint8_t ms) {
-    static uint64_t cpu_hz = 0;
-    if (cpu_hz == 0) { struct timespec ts = {0, 10000000L}; uint64_t start = GetCycles();
-        nanosleep(&ts, NULL); cpu_hz = (GetCycles() - start) * 100; if (cpu_hz == 0) cpu_hz = 1; }
-    uint64_t total_cycles = (uint64_t)ms * (cpu_hz / 1000); uint64_t start_time = GetCycles();
-    if (ms > 2) { struct timespec sleep_ts = {0, (ms - 1) * 1000000L}; nanosleep(&sleep_ts, NULL); }
-    struct timespec check_start; clock_gettime(CLOCK_MONOTONIC_RAW, &check_start); uint32_t safety = 0;
-    while ((GetCycles() - start_time) < total_cycles) { __asm__ volatile("yield");
-        if (++safety > 2000) { struct timespec now; clock_gettime(CLOCK_MONOTONIC_RAW, &now);
-                               if (now.tv_sec > check_start.tv_sec) { cpu_hz = 0; break; }
-                               safety = 0; } } }
+    if (timebase.denom == 0) mach_timebase_info(&timebase);
+    if (cpu_hz == 0) {
+        uint64_t start = mach_absolute_time(); struct timespec ts = {0, 10000000L}; nanosleep(&ts, NULL);
+        uint64_t end = mach_absolute_time(); uint64_t elapsed_ticks = end - start;
+        uint64_t elapsed_ns = elapsed_ticks * timebase.numer / timebase.denom;
+        cpu_hz = (elapsed_ns * 100) / 10;
+        if (cpu_hz == 0) cpu_hz = 1; }
+    uint64_t target_ns = (uint64_t)ms * 1000000ULL; uint64_t target_ticks = target_ns * timebase.denom / timebase.numer;
+    uint64_t start_time = mach_absolute_time();
+    if (ms > 2) {
+        struct timespec sleep_ts = {0, (ms - 1) * 1000000L}; nanosleep(&sleep_ts, NULL); }
+    uint64_t check_start = mach_absolute_time(); uint32_t safety = 0;
+    while ((mach_absolute_time() - start_time) < target_ticks) {
+        __asm__ volatile("yield");
+        if (++safety > 2000) {
+            uint64_t now = mach_absolute_time();
+            if ((now - check_start) > (1ULL * 1000000000ULL * timebase.denom / timebase.numer)) { cpu_hz = 0; break; }
+            safety = 0; check_start = now; } } }
+
 int GetSC(size_t addr) { if (!addr || !TS.col) return 1;
     struct timespec cs, ce; char *p = (char *)(addr); MemSet(p, ' ', TS.col - 1); p[TS.col - 1] = '\r';
     clock_gettime(CLOCK_MONOTONIC_RAW, &cs);
