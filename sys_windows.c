@@ -35,12 +35,7 @@ KeyIdMap NameId[] = { {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
     {"[F", K_END}, {"[H", K_HOM}, {"OP", K_F1}, {"OQ", K_F2}, {"OR", K_F3}, {"OS", K_F4} };
 const char* GetKey(void) {
     static unsigned char b[6]; unsigned char *p = b; uint8_t len = 6; while (len) b[--len] = 0;
-    HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE); DWORD events = 0;
-    GetNumberOfConsoleInputEvents(hIn, &events);
-    if (events == 0) { *p = 27; return (char*)b; }
-    _read(0, p, 1); if (*p == 27) { events = 0;
-        GetNumberOfConsoleInputEvents(hIn, &events);
-        if (events == 0) { *++p = 27; return (char*)b; } }
+    if (_read(0, p, 1) <= 0) { *p = 27; return (char*)b; }
     unsigned char c = *p; if (c > 127) {
         len = (c >= 0xF0) ? 4 : (c >= 0xE0) ? 3 : (c >= 0xC0) ? 2 : 1;
         while (--len) _read(0, ++p, 1);
