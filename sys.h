@@ -89,16 +89,8 @@ enum { Ccurrent = 0, CcurrentI, CcurrentB, CcurrentIB, Cdef, CdefI, CdefB,
     CdefIB, Cgrey, CgreyI, CgreyB, CgreyIB, Cgreen, CgreenI, CgreenB,
     CgreenIB, Cred, CredI, CredB, CredIB, Cblue, CblueI, CblueB, CblueIB,
     Corange, CorangeI, CorangeB, CorangeIB, Cgold, CgoldI, CgoldB, CgoldIB };
-    
-void* os_open_file(const char* name);
-void* os_create_file(const char* name);
-void  os_close_file(void* handle);
-int   os_read_file(void* handle, unsigned char* buf, int len);
-int   os_read_file_at(void* handle, long offset, unsigned char* buf, int len);
-int   os_print_file(void* handle, const char* format, ...);
-void  os_printf(const char* format, ...);
-int   os_snprintf(char* buf, size_t size, const char* format, ...);
 
+int StrLen(char *s);
 void MemSet(void* buf, uint8_t val, size_t len);
 void MemCpy(void* dst, const void* src, size_t len);
 int8_t MemCmp(void* dst, const void* src, size_t len);

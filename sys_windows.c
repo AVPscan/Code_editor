@@ -12,38 +12,7 @@
 #include <direct.h>
 #include <io.h>
 
-#include <stdio.h>    / vfprintf, vsnprintf и setvbuf
-#include <stdarg.h>   / va_list
-
-#include <stdlib.h> / malloc/free))
-#include <string.h>   / strlen)
-
 #include "sys.h"
-
-#define read win_read
-ssize_t win_read(int fd, void* buf, size_t count) {
-    if (fd != 0) return _read(fd, buf, (unsigned int)count);
-    HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE); DWORD events = 0;
-    if (!GetNumberOfConsoleInputEvents(hIn, &events) || events == 0) return -1;
-    return _read(fd, buf, (unsigned int)count); }
-    
-void* os_open_file(const char* name) { return (void*)fopen(name, "rb"); }
-void* os_create_file(const char* name) { return (void*)fopen(name, "wb"); }
-void  os_close_file(void* handle) { if (handle) fclose((FILE*)handle); }
-int os_read_file(void* handle, unsigned char* buf, int len) { if (!handle) return 0;
-    return (int)fread(buf, 1, len, (FILE*)handle); }
-int os_read_file_at(void* handle, long offset, unsigned char* buf, int len) { if (!handle) return 0;
-    FILE* f = (FILE*)handle; if (fseek(f, offset, SEEK_SET) != 0) return 0;
-    return (int)fread(buf, 1, len, f); }
-int os_print_file(void* handle, const char* format, ...) { if (!handle) return 0;
-    va_list args; va_start(args, format); int res = vfprintf((FILE*)handle, format, args);
-    va_end(args); return res; }
-int os_snprintf(char* buf, size_t size, const char* format, ...) {
-    va_list args; va_start(args, format); int res = vsnprintf(buf, size, format, args);
-    va_end(args); return res; }
-void os_printf(const char* format, ...) {
-    va_list args; va_start(args, format); vprintf(format, args);
-    va_end(args); }
 
 void SwitchRaw(void) {
     HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE); HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -55,8 +24,7 @@ void SwitchRaw(void) {
         newModeIn |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_VIRTUAL_TERMINAL_INPUT;
         SetConsoleMode(hIn, newModeIn); SetConsoleMode(hOut, oldModeOut | ENABLE_VIRTUAL_TERMINAL_PROCESSING); flag = 0; }
     else {
-        FlushConsoleInputBuffer(hIn); SetConsoleMode(hIn, oldModeIn); SetConsoleMode(hOut, oldModeOut);
-        setvbuf(stdout, NULL, _IOLBF, BUFSIZ); flag = 1; } }
+        FlushConsoleInputBuffer(hIn); SetConsoleMode(hIn, oldModeIn); SetConsoleMode(hOut, oldModeOut); flag = 1; } }
 
 typedef struct { const char *name; unsigned char id; } KeyIdMap;
 KeyIdMap NameId[] = { {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
@@ -67,22 +35,24 @@ KeyIdMap NameId[] = { {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
     {"[F", K_END}, {"[H", K_HOM}, {"OP", K_F1}, {"OQ", K_F2}, {"OR", K_F3}, {"OS", K_F4} };
 const char* GetKey(void) {
     static unsigned char b[6]; unsigned char *p = b; uint8_t len = 6; while (len) b[--len] = 0;
-    if (read(0, p, 1) <= 0) { *p = 27; return (char*)b; }
-    unsigned char c = *p; if (c > 127) {
+    HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE); DWORD events = 0;
+    GetNumberOfConsoleInputEvents(hIn, &events);
+    if (events == 0) { *p = 27; return (char*)b; }
+    _read(0, p, 1); unsigned char c = *p; if (c > 127) {
         len = (c >= 0xF0) ? 4 : (c >= 0xE0) ? 3 : (c >= 0xC0) ? 2 : 1;
-        while (--len) read(0, ++p, 1);
+        while (--len) _read(0, ++p, 1);
         return (char*)b; }
     if (c > 31 && c < 127) return (char*)b;
     *p++ = 27; *p = c; if (c != 27) return (char*)b; 
     unsigned char *s1; const unsigned char *s2; int8_t j = (int)(sizeof(NameId)/sizeof(KeyIdMap));
-    if (read(0, p, 1) > 0) { s1 = p; while (((s1 - p) < 5) && (read(0, ++s1, 1) > 0)) if (*s1 > 63) break;
-        if (*s1 < 64) while((read(0,&c,1) > 0) && (c < 64));
+    if (_read(0, p, 1) > 0) { s1 = p; while (((s1 - p) < 5) && (_read(0, ++s1, 1) > 0)) if (*s1 > 63) break;
+        if (*s1 < 64) while((_read(0,&c,1) > 0) && (c < 64));
         while(j--) { s2 = (const unsigned char*)NameId[j].name;
             if (*p != *s2) continue;
             s1 = p; while (*++s1 == *++s2 && *s2);
             if (!*s2) { *p++ = NameId[j].id; *p = 0; break; } }
         if (j < 0) b[1] = 0; 
-        if (b[1] == K_Mouse) { len = 4; while(--len) read(0, p++, 1); } }
+        if (b[1] == K_Mouse) { len = 4; while(--len) _read(0, p++, 1); } }
     return (char*)b; }
 
 size_t GetRam(size_t *size) { if (!*size) return 0;
@@ -131,14 +101,8 @@ void Delay_ms(uint8_t ms) {
 int GetSC(size_t addr) { 
     if (!addr || !TS.col) return 1;
     LARGE_INTEGER freq, cs, ce;
-    QueryPerformanceFrequency(&freq);
-    char *p = (char *)(addr); 
-    MemSet(p, ' ', TS.col - 1); 
-    p[TS.col - 1] = '\r';
-    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    DWORD written;
-    QueryPerformanceCounter(&cs);
+    QueryPerformanceFrequency(&freq); char *p = (char *)(addr); MemSet(p, ' ', TS.col - 1); p[TS.col - 1] = '\r';
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE); DWORD written; QueryPerformanceCounter(&cs);
     for(int i = 0; i < 100; i++) WriteFile(hOut, p, TS.col, &written, NULL);
-    QueryPerformanceCounter(&ce); 
-    long long ns = (ce.QuadPart - cs.QuadPart) * 1000000000LL / freq.QuadPart;
+    QueryPerformanceCounter(&ce); long long ns = (ce.QuadPart - cs.QuadPart) * 1000000000LL / freq.QuadPart;
     return (int)((ns * 1000) / (TS.col * 100)); }

@@ -8,7 +8,6 @@
  */
 
 #include <stdio.h>
-#include <string.h>
 #include "sys.h"
   
 void help(void) { Print(CorangeB,"Created by Alexey Pozdnyakov in 02.2026 version 2.21\n");
@@ -17,7 +16,7 @@ void help(void) { Print(CorangeB,"Created by Alexey Pozdnyakov in 02.2026 versio
 int main(int argc, char *argv[]) {
   int flag = SystemSwitch(); size_t size = 256; char *buf = TakeTb(&size);
   int16_t c,r,x,y,wx,wy,mk,mx,my;
-  if (argc > 1) { if (strcmp(argv[1], "-?") == 0 || strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "-help") == 0) help();
+  if (argc > 1) { if (MemCmp(argv[1], "-?",2) == 0 || MemCmp(argv[1], "-h",2) == 0 || MemCmp(argv[1], "-help",5) == 0) help();
                   flag = 0; }
   while (flag) {
     Delay_ms(20); const char* k = GetKey();

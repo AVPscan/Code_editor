@@ -8,33 +8,14 @@
  */
  
 #define _POSIX_C_SOURCE 200809L
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
-#include <time.h>
-#include <termios.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <stdint.h>
-#include <sys/mman.h>
-#include <sys/ioctl.h>
+#include <time.h>      // nanosleep, clock_gettime
+#include <termios.h>   // tcgetattr, tcsetattr
+#include <fcntl.h>     // fcntl, O_NONBLOCK
+#include <unistd.h>    // read, write, chdir, readlink
+#include <stdint.h>    // uint8_t, uint64_t
+#include <sys/mman.h>  // mmap, munmap
+#include <sys/ioctl.h> // ioctl, TIOCGWINSZ
 #include "sys.h"
-
-void* os_open_file(const char* name) { return (void*)fopen(name, "rb"); }
-void* os_create_file(const char* name) { return (void*)fopen(name, "wb"); }
-void  os_close_file(void* handle) { if (handle) fclose((FILE*)handle); }
-int   os_read_file(void* handle, unsigned char* buf, int len) { if (!handle) return 0;
-    return (int)fread(buf, 1, len, (FILE*)handle); }
-int   os_read_file_at(void* handle, long offset, unsigned char* buf, int len) { if (!handle) return 0;
-    FILE* f = (FILE*)handle; if (fseek(f, offset, SEEK_SET) != 0) return 0;
-    return (int)fread(buf, 1, len, f); }
-int   os_print_file(void* handle, const char* format, ...) { if (!handle) return 0;
-    va_list args; va_start(args, format); int res = vfprintf((FILE*)handle, format, args); va_end(args); return res; }
-int   os_snprintf(char* buf, size_t size, const char* format, ...) {
-    va_list args; va_start(args, format); int res = vsnprintf(buf, size, format, args); va_end(args); return res; }
-void   os_printf(const char* format, ...) {
-    va_list args; va_start(args, format); vprintf(format, args); va_end(args); }
 
 void SwitchRaw(void) {
     static struct termios oldt; static uint8_t flag = 1;
@@ -75,11 +56,14 @@ size_t GetRam(size_t *size) { if (!*size) return 0;
     *size = l; return (size_t)r; }
 void FreeRam(size_t addr, size_t size) { if (addr) munmap((void*)addr, size); }
 
+extern char **environ;
 void SWD(size_t addr) { if (!addr) return;
     char *path = (char *)(addr); ssize_t len = readlink("/proc/self/exe", path, 1024); if (len <= 0) return;
-    path[len] = '\0'; if (strncmp(path, "/nix/store", 10) == 0) { const char *home = getenv("HOME");
-                          if (home != NULL) chdir(home);
-                          return; }
+    path[len] = '\0';
+    if (MemCmp(path, "/nix/store", 10) == 0) {
+        for (char **env = environ; *env != NULL; env++) { char *e = *env;
+            if (e[0] == 'H' && e[1] == 'O' && e[2] == 'M' && e[3] == 'E' && e[4] == '=') { chdir(e + 5); return; } }
+        return; }
     for (char *p = path + len; p > path; p--) if (*p == '/') { *p = '\0'; chdir(path); break; } }
 
 typedef struct { uint16_t col , row; } TermState;

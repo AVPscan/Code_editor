@@ -7,10 +7,6 @@
  * лицензии GNU (GPLv3).
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <time.h>
 #include <unistd.h>
 #include "sys.h"
 
@@ -48,6 +44,10 @@ char      *Avdat      = NULL;
 #define Parse(cbi)    (Apdat + ((cbi) << 5))        // 0-31 All
 #define Window(n)     (Awdat + ((n) << 3))
 
+int StrLen(char *s) { if (!s) return 0;
+    int count = 0; while (*s) { if ((*s++ & 0xC0) != 0x80) count++; }
+    return count; }
+    
 void MemSet(void* buf, uint8_t val, size_t len) {
     uint8_t *p = (uint8_t *)buf; while (len && ((Cell)p & (SizeCell - 1))) { *p++ = val; len--; }
     if (len >= SizeCell) {
@@ -121,21 +121,21 @@ Vram_ VRam = {0};
 void Print(uint8_t n, char *str) { n &= Mcbi; if (!str) return;
   char *dst = Avdat + 1024, *sav; uint16_t len;
   sav = Parse(n); len = *sav++; MemCpy(dst, sav, len); dst += len;
-  len = strlen(str); MemCpy(dst, str, len); dst += len;
+  len = StrLen(str); MemCpy(dst, str, len); dst += len;
   sav = Parse(0); len = *sav++; MemCpy(dst, sav, len); dst += len; write(1, Avdat + 1024, (dst - Avdat - 1024)); }
 
 void SetColour(uint8_t col) { if (!(col &= Mcol)) col = 3;
   col <<= 2; MemCpy(Parse(0), Parse(col), 128); }
 void InitVram(size_t addr, size_t size) { if (!addr || (size < SizeVram)) return;
-  const char* colors[] = { Green, ColorOff, Grey, Green, Red, Blue, Orange, Gold };
-  const char* modes[] = { "\007;22;27m", "\006;22;7m", "\006;1;27m", "\005;1;7m" };
-  uint8_t lm, cbi, ca, c = strlen(ColorOff), i = 8; char *ac, *dst;
+  char* colors[] = { Green, ColorOff, Grey, Green, Red, Blue, Orange, Gold };
+  char* modes[] = { "\007;22;27m", "\006;22;7m", "\006;1;27m", "\005;1;7m" };
+  uint8_t lm, cbi, ca, c = StrLen(ColorOff), i = 8; char *ac, *dst;
   Cdata = (char*)(addr); Coffset = (uint16_t*)(Cdata + SizeData); Cattr = (uint8_t*)((uint8_t*)Coffset + SizeOffset);
   Cvlen = (uint8_t*)(Cattr + SizeAttr); Clen = (uint8_t*)(Cvlen + SizeVizLen);
   Apdat = (char*)(Clen + SizeLen); Awdat = (uint16_t*)(Apdat + SizePalBuff); Avdat = (char*)((uint8_t*)Awdat + SizeWinDat);
   while (i--) { ac = (Avdat + ((i) << 5)); dst = ac; *dst++ = c; MemCpy(dst, ColorOff, c);
-      ca = strlen(colors[i]); if (ca) { *ac++ = ca; MemCpy(ac, colors[i], ca); } }
-  i = 4; while(i) { const char* mode = modes[--i]; lm = *mode++, c = 8; 
+      ca = StrLen(colors[i]); if (ca) { *ac++ = ca; MemCpy(ac, colors[i], ca); } }
+  i = 4; while(i) { char* mode = modes[--i]; lm = *mode++, c = 8; 
             while(c) { ac = (Avdat + ((--c) << 5)); cbi = (c << 2) + i; ca = (*ac++ - 1);
                 dst = Parse(cbi); *dst++ = (lm + ca); MemCpy(dst, ac, ca); MemCpy(dst + ca, mode, lm); } } }
 

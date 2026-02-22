@@ -7,38 +7,17 @@
  * лицензии GNU (GPLv3).
  */
  
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
-#include <time.h>
-#include <termios.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <stdint.h>
-#include <sys/ioctl.h>   
-#include <sys/mman.h>
-#include <mach-o/dyld.h>    // Для _NSGetExecutablePath
-#include <mach/mach_time.h> // Для mach_absolute_time
+#include <time.h>           // nanosleep, clock_gettime
+#include <termios.h>        // tcgetattr, tcsetattr
+#include <fcntl.h>          // open, O_RDONLY, O_NONBLOCK
+#include <unistd.h>         // read, write, chdir, close
+#include <stdint.h>         // uint8_t, uint64_t
+#include <sys/ioctl.h>      // ioctl, TIOCGWINSZ
+#include <sys/mman.h>       // mmap, munmap
+#include <mach-o/dyld.h>    // _NSGetExecutablePath
+#include <mach/mach_time.h> // mach_absolute_time
 
 #include "sys.h"
-
-void* os_open_file(const char* name) { return (void*)fopen(name, "rb"); }
-void* os_create_file(const char* name) { return (void*)fopen(name, "wb"); }
-void os_close_file(void* handle) { if (handle) fclose((FILE*)handle); }
-int os_read_file(void* handle, unsigned char* buf, int len) { if (!handle) return 0;
-    return (int)fread(buf, 1, len, (FILE*)handle); }
-int os_read_file_at(void* handle, long offset, unsigned char* buf, int len) { if (!handle) return 0;
-    FILE* f = (FILE*)handle; if (fseek(f, offset, SEEK_SET) != 0) return 0;
-    return (int)fread(buf, 1, len, f); }
-int os_print_file(void* handle, const char* format, ...) { if (!handle) return 0;
-    va_list args; va_start(args, format);int res = vfprintf((FILE*)handle, format, args);
-    va_end(args); return res; }
-int os_snprintf(char* buf, size_t size, const char* format, ...) {
-    va_list args; va_start(args, format); int res = vsnprintf(buf, size, format, args);
-    va_end(args); return res; }
-void os_printf(const char* format, ...) {
-    va_list args; va_start(args, format); vprintf(format, args); va_end(args); }
 
 void SwitchRaw(void) { 
     static struct termios oldt; static uint8_t flag = 1;
