@@ -72,29 +72,7 @@ uint64_t GetCycles(void) {
     unsigned int lo, hi;
     __asm__ __volatile__ ( "rdtsc\n" : "=a" (lo), "=d" (hi) : : "memory" );
     return ((uint64_t)hi << 32) | lo; }
-void Delay_ms(uint8_t ms) {
-    static uint64_t cpu_hz = 0; static uint64_t last_cycles = 0; static uint64_t correction = 0;
-    if (cpu_hz == 0) {
-        uint64_t start = GetCycles();
-        LARGE_INTEGER freq, start_qpc, end_qpc;
-        QueryPerformanceFrequency(&freq);
-        QueryPerformanceCounter(&start_qpc);
-        uint64_t target = start_qpc.QuadPart + (freq.QuadPart / 100);
-        do {
-            QueryPerformanceCounter(&end_qpc);
-            __asm__ volatile ("pause" : : : "memory");
-        } while (end_qpc.QuadPart < target);
-        uint64_t end = GetCycles();
-        if (end_qpc.QuadPart != start_qpc.QuadPart) {
-            cpu_hz = (uint64_t)((double)(end - start) * (double)freq.QuadPart / 
-                               (double)(end_qpc.QuadPart - start_qpc.QuadPart)); }
-        if (cpu_hz < 500000000) cpu_hz = 2000000000ULL;
-        cpu_hz = (cpu_hz / 1000000) * 1000000; last_cycles = GetCycles(); }
-    uint64_t now = GetCycles(); if (last_cycles == 0) last_cycles = now;
-    uint64_t target = last_cycles + (uint64_t)ms * (cpu_hz / 1000) + correction;
-    if (now >= target) { correction = (now - target) / 2; last_cycles = now; return; }
-    while (GetCycles() < target) { __asm__ volatile ("pause" : : : "memory"); }
-    last_cycles = target; correction = 0; }
+void Delay_ms(uint8_t ms) { if (ms > 19) Sleep(ms - 15); }
     
 typedef struct { uint16_t col , row; } TermState;
 TermState TS = {0};
