@@ -11,6 +11,9 @@
 #include <windows.h>
 #include <direct.h>
 #include <io.h>
+#include <stdio.h>        // Для setvbuf, BUFSIZ
+#include <stdint.h>       // Для uint8_t, uint16_t, uint64_t и т.д.
+#include <profileapi.h>
 
 #include "sys.h"
 
@@ -18,14 +21,15 @@ void SwitchRaw(void) {
     HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE); HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
     static DWORD oldModeIn, oldModeOut; static uint8_t flag = 1;   
     if (flag) {
+        setvbuf(stdout, NULL, _IONBF, 0);
         GetConsoleMode(hIn, &oldModeIn); GetConsoleMode(hOut, &oldModeOut);
-        SetConsoleCP(CP_UTF8); SetConsoleOutputCP(CP_UTF8);
-        CONSOLE_CURSOR_INFO cinfo = {100, FALSE}; SetConsoleCursorInfo(hOut, &cinfo);
-        DWORD newModeIn = oldModeIn & ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS);
-        newModeIn |= ENABLE_VIRTUAL_TERMINAL_INPUT;
+        SetConsoleCP(65001); SetConsoleOutputCP(65001);
+        DWORD newModeIn = oldModeIn & ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_MOUSE_INPUT);
         SetConsoleMode(hIn, newModeIn);
         SetConsoleMode(hOut, oldModeOut | ENABLE_VIRTUAL_TERMINAL_PROCESSING); flag = 0; }
-    else { SetConsoleMode(hIn, oldModeIn); SetConsoleMode(hOut, oldModeOut); flag = 1; } }
+    else { 
+        FlushConsoleInputBuffer(hIn); SetConsoleMode(hIn, oldModeIn); SetConsoleMode(hOut, oldModeOut);
+        setvbuf(stdout, NULL, _IOLBF, BUFSIZ); flag = 1; } }
 
 typedef struct { const char *name; unsigned char id; } KeyIdMap;
 KeyIdMap NameId[] = { {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
@@ -64,6 +68,34 @@ void SWD(size_t addr) { if (!addr) return;
     char *path = (char *)(addr); DWORD len = GetModuleFileNameA(NULL, path, 1024); if (len == 0) return;
     for (char *p = path + len; p > path; p--) if (*p == '\\' || *p == '/') { *p = '\0'; _chdir(path); break; } }
 
+uint64_t GetCycles(void) {
+    unsigned int lo, hi;
+    __asm__ __volatile__ ( "rdtsc\n" : "=a" (lo), "=d" (hi) : : "memory" );
+    return ((uint64_t)hi << 32) | lo; }
+void Delay_ms(uint8_t ms) {
+    static uint64_t cpu_hz = 0; static uint64_t last_cycles = 0; static uint64_t correction = 0;
+    if (cpu_hz == 0) {
+        uint64_t start = GetCycles();
+        LARGE_INTEGER freq, start_qpc, end_qpc;
+        QueryPerformanceFrequency(&freq);
+        QueryPerformanceCounter(&start_qpc);
+        uint64_t target = start_qpc.QuadPart + (freq.QuadPart / 100);
+        do {
+            QueryPerformanceCounter(&end_qpc);
+            __asm__ volatile ("pause" : : : "memory");
+        } while (end_qpc.QuadPart < target);
+        uint64_t end = GetCycles();
+        if (end_qpc.QuadPart != start_qpc.QuadPart) {
+            cpu_hz = (uint64_t)((double)(end - start) * (double)freq.QuadPart / 
+                               (double)(end_qpc.QuadPart - start_qpc.QuadPart)); }
+        if (cpu_hz < 500000000) cpu_hz = 2000000000ULL;
+        cpu_hz = (cpu_hz / 1000000) * 1000000; last_cycles = GetCycles(); }
+    uint64_t now = GetCycles(); if (last_cycles == 0) last_cycles = now;
+    uint64_t target = last_cycles + (uint64_t)ms * (cpu_hz / 1000) + correction;
+    if (now >= target) { correction = (now - target) / 2; last_cycles = now; return; }
+    while (GetCycles() < target) { __asm__ volatile ("pause" : : : "memory"); }
+    last_cycles = target; correction = 0; }
+    
 typedef struct { uint16_t col , row; } TermState;
 TermState TS = {0};
 uint16_t TermCR(uint16_t *r) { *r = TS.row; return TS.col; }
@@ -85,28 +117,6 @@ int16_t SyncSize(size_t addr, uint8_t flag) {
                 uint16_t cur_h = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
                 if (cur_w != w || cur_h != h) { w = cur_w; h = cur_h; stable = 100; } } } }
     TS.col = w; TS.row = h; return 1; }
-
-uint64_t GetCycles(void) {
-    unsigned int lo, hi;
-    __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
-    return ((uint64_t)hi << 32) | lo; }
-void Delay_ms(uint8_t ms) {
-    static LARGE_INTEGER freq; static uint64_t cpu_hz = 0; static int init = 0;
-    if (!init) { QueryPerformanceFrequency(&freq); init = 1; }
-    if (cpu_hz == 0) { LARGE_INTEGER start, end, qpc_start, qpc_end; QueryPerformanceCounter(&qpc_start);
-        start = qpc_start; Sleep(10); QueryPerformanceCounter(&qpc_end);
-        uint64_t ns = (uint64_t)((qpc_end.QuadPart - qpc_start.QuadPart) * 1000000000ULL / freq.QuadPart);
-        uint64_t cycles = GetCycles() - (uint64_t)start.QuadPart; cpu_hz = (cycles * 1000000000ULL) / ns;
-        if (cpu_hz == 0) cpu_hz = 1; }
-    uint64_t total_cycles = (uint64_t)ms * (cpu_hz / 1000); uint64_t start_time = GetCycles();
-    if (ms > 2) Sleep(ms - 1);
-    LARGE_INTEGER check_start, now; QueryPerformanceCounter(&check_start); uint32_t safety = 0;
-    while ((GetCycles() - start_time) < total_cycles) {
-        __asm__ volatile("pause");
-        if (++safety > 2000) {
-            QueryPerformanceCounter(&now);
-            if (now.QuadPart - check_start.QuadPart > freq.QuadPart) { cpu_hz = 0; break; }
-            safety = 0; } } }
 
 int GetSC(size_t addr) { 
     if (!addr || !TS.col) return 1;
