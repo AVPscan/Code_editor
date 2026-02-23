@@ -19,17 +19,19 @@
 
 void SwitchRaw(void) {
     HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE); HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    static DWORD oldModeIn, oldModeOut; static uint8_t flag = 1;   
+    static DWORD oldModeIn, oldModeOut; static UINT oldCP, oldOutCP; static uint8_t flag = 1;   
     if (flag) {
         setvbuf(stdout, NULL, _IONBF, 0);
+        oldCP = GetConsoleCP(); oldOutCP = GetConsoleOutputCP();
         GetConsoleMode(hIn, &oldModeIn); GetConsoleMode(hOut, &oldModeOut);
         SetConsoleCP(65001); SetConsoleOutputCP(65001);
         DWORD newModeIn = oldModeIn & ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_MOUSE_INPUT);
+        newModeIn |= ENABLE_VIRTUAL_TERMINAL_INPUT;
         SetConsoleMode(hIn, newModeIn);
         SetConsoleMode(hOut, oldModeOut | ENABLE_VIRTUAL_TERMINAL_PROCESSING); flag = 0; }
     else { 
-        FlushConsoleInputBuffer(hIn); SetConsoleMode(hIn, oldModeIn); SetConsoleMode(hOut, oldModeOut);
-        setvbuf(stdout, NULL, _IOLBF, BUFSIZ); flag = 1; } }
+        FlushConsoleInputBuffer(hIn); SetConsoleCP(oldCP); SetConsoleOutputCP(oldOutCP); SetConsoleMode(hIn, oldModeIn);
+        SetConsoleMode(hOut, oldModeOut); setvbuf(stdout, NULL, _IOLBF, BUFSIZ); flag = 1; } }
 
 typedef struct { const char *name; unsigned char id; } KeyIdMap;
 KeyIdMap NameId[] = { {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
