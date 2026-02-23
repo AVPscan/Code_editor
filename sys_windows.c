@@ -48,14 +48,15 @@ const char* GetKey(void) {
     if (c > 31 && c < 127) return (char*)b;
     *p++ = 27; *p = c; if (c != 27) return (char*)b; 
     unsigned char *s1; const unsigned char *s2; int8_t j = (int)(sizeof(NameId)/sizeof(KeyIdMap));
-    if (_read(0, p, 1) > 0) { s1 = p; while (((s1 - p) < 5) && (_read(0, ++s1, 1) > 0)) if (*s1 > 63) break;
-        if (*s1 < 64) while((_read(0,&c,1) > 0) && (c < 64));
-        while(j--) { s2 = (const unsigned char*)NameId[j].name;
-            if (*p != *s2) continue;
-            s1 = p; while (*++s1 == *++s2 && *s2);
-            if (!*s2) { *p++ = NameId[j].id; *p = 0; break; } }
-        if (j < 0) b[1] = 0; 
-        if (b[1] == K_Mouse) { len = 4; while(--len) _read(0, p++, 1); } }
+    if (!_kbhit()) return (char*)b;
+    s1 = p; while (((s1 - p) < 5) && (_read(0, ++s1, 1) > 0)) if (*s1 > 63) break;
+    if (*s1 < 64) while((_read(0,&c,1) > 0) && (c < 64));
+    while(j--) { s2 = (const unsigned char*)NameId[j].name;
+        if (*p != *s2) continue;
+        s1 = p; while (*++s1 == *++s2 && *s2);
+        if (!*s2) { *p++ = NameId[j].id; *p = 0; break; } }
+    if (j < 0) b[1] = 0; 
+    if (b[1] == K_Mouse) { len = 4; while(--len) _read(0, p++, 1); } 
     return (char*)b; }
 
 size_t GetRam(size_t *size) { if (!*size) return 0;
