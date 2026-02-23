@@ -10,7 +10,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <direct.h>
-#include <conio.h>
 #include <io.h>
 
 #include "sys.h"
@@ -22,9 +21,9 @@ void SwitchRaw(void) {
         GetConsoleMode(hIn, &oldModeIn); GetConsoleMode(hOut, &oldModeOut);
         SetConsoleCP(CP_UTF8); SetConsoleOutputCP(CP_UTF8);
         CONSOLE_CURSOR_INFO cinfo = {100, FALSE}; SetConsoleCursorInfo(hOut, &cinfo);
-        DWORD newModeIn = ENABLE_VIRTUAL_TERMINAL_INPUT;  // Для стрелок, F1-F12
-        newModeIn |= ENABLE_EXTENDED_FLAGS;               // Чтобы отключить QuickEdit
-        SetConsoleMode(hIn, newModeIn);                   // ПРИМЕНЯЕМ режимы ввода
+        DWORD newModeIn = oldModeIn & ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS);
+        newModeIn |= ENABLE_VIRTUAL_TERMINAL_INPUT;
+        SetConsoleMode(hIn, newModeIn);
         SetConsoleMode(hOut, oldModeOut | ENABLE_VIRTUAL_TERMINAL_PROCESSING); flag = 0; }
     else { SetConsoleMode(hIn, oldModeIn); SetConsoleMode(hOut, oldModeOut); flag = 1; } }
 

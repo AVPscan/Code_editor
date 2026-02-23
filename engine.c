@@ -198,7 +198,7 @@ void ViewPort(const char* key) {
       if (Cur.Y + Cur.viewY < 0) Cur.Y = -Cur.viewY;
       else if (Cur.Y + Cur.viewY >= r) Cur.Y = r - 1 - Cur.viewY; }
   ShowC(On); }
-  
+    
 int SystemSwitch(void) {
   static uint8_t flag = 1;
   if (flag) { VRam.size = SizeVram; if (!(VRam.addr = GetRam(&VRam.size))) return 0;
