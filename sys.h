@@ -75,7 +75,8 @@
 #define AltBufOn    "\033[?1049h"
 #define AltBufOff   "\033[?1049l"
 
-
+#define Off         0
+#define On          1
 typedef uintptr_t Cell;
 #define SizeCell sizeof(Cell)
 
@@ -90,7 +91,7 @@ enum { Ccurrent = 0, CcurrentI, CcurrentB, CcurrentIB, Cdef, CdefI, CdefB,
     CgreenIB, Cred, CredI, CredB, CredIB, Cblue, CblueI, CblueB, CblueIB,
     Corange, CorangeI, CorangeB, CorangeIB, Cgold, CgoldI, CgoldB, CgoldIB };
 
-int StrLen(char *s);
+size_t StrLen(char *s);
 void MemSet(void* buf, uint8_t val, size_t len);
 void MemCpy(void* dst, const void* src, size_t len);
 int8_t MemCmp(void* dst, const void* src, size_t len);
