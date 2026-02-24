@@ -21,7 +21,7 @@ void SwitchRaw(void) {
         GetConsoleMode(hIn, &oldModeIn); GetConsoleMode(hOut, &oldModeOut);
         SetConsoleCP(65001); SetConsoleOutputCP(65001);
         DWORD newModeIn = oldModeIn & ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
-        newModeIn |= (ENABLE_EXTENDED_FLAGS | ENABLE_MOUSE_INPUT);
+        newModeIn |= (ENABLE_EXTENDED_FLAGS | ENABLE_MOUSE_INPUT | ENABLE_VIRTUAL_TERMINAL_INPUT);
         SetConsoleMode(hIn, newModeIn);
         SetConsoleMode(hOut, oldModeOut | ENABLE_VIRTUAL_TERMINAL_PROCESSING); flag = 0; }
     else {
@@ -40,7 +40,7 @@ void GetKey(char *b) {
     HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE); DWORD ev = 0, rd = 0; *p = 27;
     GetNumberOfConsoleInputEvents(hIn, &ev); if (ev == 0) return;
     INPUT_RECORD ir; PeekConsoleInput(hIn, &ir, 1, &rd); if (rd == 0) return;
-    if (ir.EventType == KEY_EVENT) {
+    if (ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown) {
       ReadFile(hIn, p, 1, &rd, NULL); unsigned char c = *p;
       if (c > 127) {
         len = (c >= 0xF0) ? 3 : (c >= 0xE0) ? 2 : (c >= 0xC0) ? 1 : 0;
@@ -60,14 +60,13 @@ void GetKey(char *b) {
                 t1 = p; while (*++t1 == *++s2 && *s2);
                 if (!*s2) { *p++ = NameId[j].id; *p = 0; break; } }
             if (*p++ == K_Mouse) { len = 3; while(len--) ReadFile(hIn, p++, 1, &rd, NULL); }
-            if (j < 0) *--p = 0; } }
-      return; }
+            if (j < 0) *--p = 0; } } return; }
     if (ir.EventType == MOUSE_EVENT) {
       ReadConsoleInput(hIn, &ir, 1, &rd); MOUSE_EVENT_RECORD mer = ir.Event.MouseEvent;
+      if (ir.Event.MouseEvent.dwEventFlags == MOUSE_MOVED) return;
       *++p = K_Mouse;
-      *++p = 32 + (mer.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED ? 0 : 
-                   mer.dwButtonState & RIGHTMOST_BUTTON_PRESSED ? 2 : 
-                   mer.dwEventFlags & MOUSE_WHEELED ? (mer.dwButtonState & 0xFF000000 ? 97 : 96) : 1);
+      *++p = (mer.dwEventFlags & MOUSE_WHEELED) ? ((mer.dwButtonState & 0x80000000) ? 96 : 97) :
+             (32 + (mer.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED ? 0 : mer.dwButtonState & RIGHTMOST_BUTTON_PRESSED ? 2 : 1));
       *++p = (unsigned char)(33 + mer.dwMousePosition.X); *++p = (unsigned char)(33 + mer.dwMousePosition.Y); return; } 
     ReadConsoleInput(hIn, &ir, 1, &rd); }
 
