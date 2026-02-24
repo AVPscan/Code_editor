@@ -20,8 +20,8 @@ void SwitchRaw(void) {
         oldCP = GetConsoleCP(); oldOutCP = GetConsoleOutputCP();
         GetConsoleMode(hIn, &oldModeIn); GetConsoleMode(hOut, &oldModeOut);
         SetConsoleCP(65001); SetConsoleOutputCP(65001);
-        DWORD newModeIn = oldModeIn & ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_MOUSE_INPUT | ENABLE_QUICK_EDIT_MODE);
-        newModeIn |= (ENABLE_VIRTUAL_TERMINAL_INPUT | ENABLE_EXTENDED_FLAGS);
+        DWORD newModeIn = oldModeIn & ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
+        newModeIn |= (ENABLE_VIRTUAL_TERMINAL_INPUT | ENABLE_EXTENDED_FLAGS | ENABLE_MOUSE_INPUT);
         SetConsoleMode(hIn, newModeIn);
         SetConsoleMode(hOut, oldModeOut | ENABLE_VIRTUAL_TERMINAL_PROCESSING); GetConsoleCursorInfo(hOut, &ci);
         ci.bVisible = FALSE; SetConsoleCursorInfo(hOut, &ci); flag = 0; }
@@ -115,4 +115,3 @@ int GetSC(size_t addr) {
     for(int i = 0; i < 100; i++) WriteFile(hOut, p, TS.col, &written, NULL);
     QueryPerformanceCounter(&ce); long long ns = (ce.QuadPart - cs.QuadPart) * 1000000000LL / freq.QuadPart;
     return (int)((ns * 1000) / (TS.col * 100)); }
-
