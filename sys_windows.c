@@ -10,6 +10,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <stdint.h>
+#include <io.h>
 
 #include "sys.h"
 
@@ -37,38 +38,23 @@ KeyIdMap NameId[] = { {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
     {"[F", K_END}, {"[H", K_HOM}, {"OP", K_F1}, {"OQ", K_F2}, {"OR", K_F3}, {"OS", K_F4} };
 void GetKey(char *b) {
     unsigned char *p = (unsigned char *)b; uint8_t len = 6; while (len) b[--len] = 0;
-    HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE); DWORD ev = 0, rd = 0; *p = 27;
-    GetNumberOfConsoleInputEvents(hIn, &ev); if (ev == 0) return;
-    INPUT_RECORD ir; PeekConsoleInput(hIn, &ir, 1, &rd); if (rd == 0) return;
-    if (ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown) {
-      ReadFile(hIn, p, 1, &rd, NULL); unsigned char c = *p;
-      if (c > 127) {
-        len = (c >= 0xF0) ? 3 : (c >= 0xE0) ? 2 : (c >= 0xC0) ? 1 : 0;
-        while (len--) { ReadFile(hIn, ++p, 1, &rd, NULL); }
+    HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE); DWORD ev = 0; GetNumberOfConsoleInputEvents(hIn, &ev);
+    if (ev == 0) { *p = 27; return; }
+    _read(0, p, 1); unsigned char c = *p; if (c > 127) {
+        len = (c >= 0xF0) ? 4 : (c >= 0xE0) ? 3 : (c >= 0xC0) ? 2 : 1;
+        while (--len) _read(0, ++p, 1);
         return; }
-      if (c > 31 && c < 127) return;
-      *p++ = 27; *p = c; if (c != 27) return;
-      GetNumberOfConsoleInputEvents(hIn, &ev);
-      if (ev > 0) {
-        if (ReadFile(hIn, p, 1, &rd, NULL) > 0) {
-            unsigned char *s1 = p, *t1;
-            while (((s1 - p) < 5) && (ReadFile(hIn, ++s1, 1, &rd, NULL) > 0)) if (*s1 > 63) break;
-            if (*s1 < 64) while((ReadFile(hIn, &c, 1, &rd, NULL) > 0) && (c < 64));
-            int8_t j = (int)(sizeof(NameId)/sizeof(KeyIdMap));
-            while(j--) {
-                const unsigned char *s2 = (const unsigned char*)NameId[j].name; if (*p != *s2) continue;
-                t1 = p; while (*++t1 == *++s2 && *s2);
-                if (!*s2) { *p++ = NameId[j].id; *p = 0; break; } }
-            if (*p++ == K_Mouse) { len = 3; while(len--) ReadFile(hIn, p++, 1, &rd, NULL); }
-            if (j < 0) *--p = 0; } } return; }
-    if (ir.EventType == MOUSE_EVENT) {
-      ReadConsoleInput(hIn, &ir, 1, &rd); MOUSE_EVENT_RECORD mer = ir.Event.MouseEvent;
-      if (ir.Event.MouseEvent.dwEventFlags == MOUSE_MOVED) return;
-      *++p = K_Mouse;
-      *++p = (mer.dwEventFlags & MOUSE_WHEELED) ? ((mer.dwButtonState & 0x80000000) ? 96 : 97) :
-             (32 + (mer.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED ? 0 : mer.dwButtonState & RIGHTMOST_BUTTON_PRESSED ? 2 : 1));
-      *++p = (unsigned char)(33 + mer.dwMousePosition.X); *++p = (unsigned char)(33 + mer.dwMousePosition.Y); return; } 
-    ReadConsoleInput(hIn, &ir, 1, &rd); }
+    if (c > 31 && c < 127) return;
+    *p++ = 27; *p = c; if (c != 27) return; 
+    unsigned char *s1; const unsigned char *s2; int8_t j = (int)(sizeof(NameId)/sizeof(KeyIdMap));
+    if (_read(0, p, 1) > 0) { s1 = p; while (((s1 - p) < 5) && (_read(0, ++s1, 1) > 0)) if (*s1 > 63) break;
+        if (*s1 < 64) while((_read(0,&c,1) > 0) && (c < 64));
+        while(j--) { s2 = (const unsigned char*)NameId[j].name;
+            if (*p != *s2) continue;
+            s1 = p; while (*++s1 == *++s2 && *s2);
+            if (!*s2) { *p++ = NameId[j].id; *p = 0; break; } }
+        if (j < 0) b[1] = 0;
+        if (b[1] == K_Mouse) { len = 4; while(--len) _read(0, p++, 1); } } }
 
 size_t GetRam(size_t *size) { if (!*size) return 0;
     size_t l = (*size + 0xFFF) & ~0xFFF; void *r = VirtualAlloc(NULL, l, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -104,14 +90,14 @@ int16_t SyncSize(size_t addr, uint8_t flag) {
     uint16_t h = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
     if (w == TS.col && h == TS.row) return 0;
     if (flag) { 
-        uint8_t stable = 100;
-        while (stable) {
+        uint8_t stable = 70;
+        while (stable) {  Print(Ccurrent,HideCur);
             Delay_ms(10); stable -= 10;
             if (GetConsoleScreenBufferInfo(hOut, &csbi)) {
                 uint16_t cur_w = csbi.srWindow.Right - csbi.srWindow.Left + 1;
                 uint16_t cur_h = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
                 if (cur_w != w || cur_h != h) { w = cur_w; h = cur_h; stable = 100; } } } }
-    TS.col = w; TS.row = h; Print(Ccurrent,HideCur); return 1; }
+    TS.col = w; TS.row = h; return 1; }
 
 int GetSC(size_t addr) { 
     if (!addr || !TS.col) return 1;
