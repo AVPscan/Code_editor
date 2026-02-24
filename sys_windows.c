@@ -40,14 +40,25 @@ KeyIdMap NameId[] = { {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
 void GetKey(char *b) {
     unsigned char *p = (unsigned char *)b; uint8_t len = 6; while (len) b[--len] = 0;
     HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE); DWORD ev = 0, rd = 0;
-    GetNumberOfConsoleInputEvents(hIn, &ev); if (!ev) { *p = 27; return; }
+    GetNumberOfConsoleInputEvents(hIn, &ev); if (!ev) { *p++ = 27;
+        INPUT_RECORD ir; PeekConsoleInput(hIn, &ir, 1, &rd); 
+        if (rd > 0 && ir.EventType == MOUSE_EVENT) {
+            ReadConsoleInput(hIn, &ir, 1, &rd);
+            MOUSE_EVENT_RECORD mer = ir.Event.MouseEvent;
+           *p++ = K_Mouse;
+           *p++ = 32 + (mer.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED ? 0 : 
+                        mer.dwButtonState & RIGHTMOST_BUTTON_PRESSED ? 2 : 
+                        mer.dwEventFlags & MOUSE_WHEELED ? (mer.dwButtonState & 0xFF000000 ? 97 : 96) : 1);
+            *p++ = (unsigned char)(33 + mer.dwMousePosition.X);
+            *p = (unsigned char)(33 + mer.dwMousePosition.Y); }
+      return; }
     ReadFile(hIn, p, 1, &rd, NULL); unsigned char c = *p;
     if (c > 127) {
         len = (c >= 0xF0) ? 3 : (c >= 0xE0) ? 2 : (c >= 0xC0) ? 1 : 0;
         while (len--) { ReadFile(hIn, ++p, 1, &rd, NULL); }
         return; }
     if (c > 31 && c < 127) return;
-    *p++ = 27; if (c != 27) { *p = c; return; }
+    *p++ = 27; *p = c; if (c != 27) return;
     GetNumberOfConsoleInputEvents(hIn, &ev);
     if (ev > 0) {
         if (ReadFile(hIn, p, 1, &rd, NULL) > 0) {
@@ -103,8 +114,7 @@ int16_t SyncSize(size_t addr, uint8_t flag) {
                 uint16_t cur_w = csbi.srWindow.Right - csbi.srWindow.Left + 1;
                 uint16_t cur_h = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
                 if (cur_w != w || cur_h != h) { w = cur_w; h = cur_h; stable = 100; } } } }
-    TS.col = w; TS.row = h; Print(Ccurrent, AltBufOn); Print(Ccurrent, Reset); Print(Ccurrent, HideCur); Print(Ccurrent, WrapOn); Print(Ccurrent, MouseX10on);
-    CONSOLE_CURSOR_INFO ci; if (GetConsoleCursorInfo(hOut, &ci)) { ci.bVisible = FALSE; SetConsoleCursorInfo(hOut, &ci); }
+    TS.col = w; TS.row = h; CONSOLE_CURSOR_INFO ci_fix; ci_fix.dwSize = 100; ci_fix.bVisible = FALSE; SetConsoleCursorInfo(hOut, &ci_fix);
     return 1; }
 
 int GetSC(size_t addr) { 
