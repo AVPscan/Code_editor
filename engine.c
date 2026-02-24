@@ -154,43 +154,37 @@ void ShowC(uint8_t on) {
   *src++ = ' '; if (on) { sav = Parse(Ccurrent); MemCpy(src, (sav + 1), *sav); src += *sav; }
   write (1, Avdat, (src - Avdat)); }
 uint8_t ViewPort(void) {
-  uint16_t control = 0, r, c; GetKey(Cur.key);
+  uint16_t control = 0, r, c = TermCR(&r); GetKey(Cur.key);
   if (Cur.key[0] == 27 && Cur.key[1] == K_ESC) return 0;
   if (Cur.key[0] == 27 && Cur.key[1] == K_NO) return 1;
   if (Cur.Vision & 1) ShowC(Off);
   if (Cur.key[0] != 27) Cur.CodeKey = 0;
   else { Cur.CodeKey = (uint8_t)Cur.key[1];
-      if (Cur.key[1] == K_Mouse) { Cur.Mkey = (uint8_t)Cur.key[2]; Cur.MX = (uint8_t)Cur.key[3] - 33; Cur.MY = (uint8_t)Cur.key[4] - 33;
-                                if (Cur.Mkey == 32) { Cur.X = Cur.MX - Cur.viewX; Cur.Y = Cur.MY - Cur.viewY; Cur.LkX = Cur.X; Cur.LkY = Cur.Y; }
+      if (Cur.CodeKey == K_Ctrl_W) Cur.Vision ^= 4;
+      if (Cur.key[1] == K_Mouse) { Cur.Mkey = (uint8_t)Cur.key[2]; Cur.Tic = 0; Cur.dXY = 1;
+                                if (Cur.Mkey == 32) { Cur.MX = (uint8_t)Cur.key[3] - 33; Cur.MY = (uint8_t)Cur.key[4] - 33; 
+                                    Cur.X = Cur.MX - Cur.viewX; Cur.Y = Cur.MY - Cur.viewY; Cur.LkX = Cur.X; Cur.LkY = Cur.Y; }
                                 else if (Cur.Mkey == 33) Cur.Vision ^= 2;
-                                else if (Cur.Mkey == 34) { Cur.X = Cur.MX - Cur.viewX; Cur.Y = Cur.MY - Cur.viewY; Cur.RkX = Cur.X; Cur.RkY = Cur.Y; }
+                                else if (Cur.Mkey == 34) { Cur.MX = (uint8_t)Cur.key[3] - 33; Cur.MY = (uint8_t)Cur.key[4] - 33; 
+                                    Cur.X = Cur.MX - Cur.viewX; Cur.Y = Cur.MY - Cur.viewY; Cur.RkX = Cur.X; Cur.RkY = Cur.Y; }
                                 else if (Cur.Mkey == 96) control--;
                                 else if (Cur.Mkey == 97) control++; 
-                                if (control) { if (Cur.Vision & 4) Cur.Y += control;
-                                               else Cur.viewY += control; } } }
-  control = SyncSize(VRam.addr,1); c = TermCR(&r);
-  if (control) {
-      if (Cur.X + Cur.viewX >= c || Cur.Y + Cur.viewY >= r || Cur.X + Cur.viewX < 0 || Cur.Y + Cur.viewY < 0) Cur.Vision &= 0xFE;
-      if (Cur.X + Cur.viewX >= c) Cur.viewX = c - 1 - Cur.X;
-      else if (Cur.X + Cur.viewX < 0)  Cur.viewX = -Cur.X;
-      if (Cur.Y + Cur.viewY >= r) Cur.viewY = r - 1 - Cur.Y;
-      else if (Cur.Y + Cur.viewY < 0)  Cur.viewY = -Cur.Y;
-      Cur.oldCols = c; Cur.oldRows = r; control =0; }
-  if (Cur.CodeKey == K_Ctrl_W) Cur.Vision ^= 4;
+                                if (control) { if (!(Cur.Vision & 6)) Cur.viewY += control; 
+                                               Cur.Y += control; } } }
   if (Cur.CodeKey != Cur.PenCK) { Cur.PenCK = Cur.CodeKey; Cur.Tic = 0; Cur.dXY = 1; }
-  if ((Cur.CodeKey & 0xF8) == 0x20) { Cur.Tic++; control++;
-      if ((Cur.Tic > 7) && !(Cur.Tic & 3) && (Cur.dXY < 64)) Cur.dXY <<= 1; }
-  if (control) {
+  if ((Cur.CodeKey & 0xF8) == 0x20) { Cur.Tic++;
+      if ((Cur.Tic > 7) && !(Cur.Tic & 3) && (Cur.dXY < 64)) Cur.dXY <<= 1;
       if (!(Cur.Vision & 4)) {
           if (Cur.CodeKey == K_Ctrl_LEF) Cur.viewX -= Cur.dXY;
           else if (Cur.CodeKey == K_Ctrl_RIG) Cur.viewX += Cur.dXY;
           else if (Cur.CodeKey == K_Ctrl_UP) Cur.viewY -= Cur.dXY;
           else if (Cur.CodeKey == K_Ctrl_DOW) Cur.viewY += Cur.dXY; }
+      Cur.CodeKey &= 0xFE;
       if (Cur.CodeKey == K_LEF) Cur.X -= Cur.dXY;
       else if (Cur.CodeKey == K_RIG) Cur.X += Cur.dXY;
       else if (Cur.CodeKey == K_UP) Cur.Y -= Cur.dXY;
       else if (Cur.CodeKey == K_DOW) Cur.Y += Cur.dXY; }
-  if (Cur.Vision & 2 && !(Cur.Vision & 4)) {
+  if (!(Cur.Vision & 6)) {
       if ((Cur.X + Cur.viewX) < 0) { Cur.viewX = - Cur.X; }
       else if ((Cur.X + Cur.viewX) >= c) { Cur.viewX = c - 1 - Cur.X; }
       if ((Cur.Y + Cur.viewY) < 0) { Cur.viewY = - Cur.Y; }
@@ -200,6 +194,13 @@ uint8_t ViewPort(void) {
       else if (Cur.X + Cur.viewX >= c) Cur.X = c - 1 - Cur.viewX;
       if (Cur.Y + Cur.viewY < 0) Cur.Y = -Cur.viewY;
       else if (Cur.Y + Cur.viewY >= r) Cur.Y = r - 1 - Cur.viewY; }
+  control = SyncSize(VRam.addr,1);
+  if (control) { c = TermCR(&r);
+      if (Cur.X + Cur.viewX >= c) Cur.X = c - 1 - Cur.viewX;
+      else if (Cur.X + Cur.viewX < 0)  Cur.X = -Cur.viewX;
+      if (Cur.Y + Cur.viewY >= r) Cur.Y = r - 1 - Cur.viewY;
+      else if (Cur.Y + Cur.viewY < 0)  Cur.Y = -Cur.viewY;
+      Cur.oldCols = c; Cur.oldRows = r; control--; }  
   ShowC(On); return 1; }
     
 int SystemSwitch(void) {
@@ -216,8 +217,8 @@ uint32_t Bin( uint8_t x) {
   return c + 100000000; }
   
 void Show(void) { uint16_t r = 0;
-  Print(Ccurrent,Home); snprintf(Avdat, 256, "%d %d %d %d %d %d         \n", Bin(Cur.Vision), Cur.X + Cur.viewX, Cur.Y + Cur.viewY, Cur.MX, Cur.MY, Cur.Mkey);
-  Print(Cblue,Avdat); snprintf(Avdat, 256, "%d %d %d %d %d %d %d     ", TermCR(&r), r, Cur.X, Cur.Y, Cur.viewX, Cur.viewY, Cur.dXY); Print(Cgreen,Avdat); }
+  Print(Ccurrent,Home); snprintf(Avdat, 256, "v%d %d %d mx%d my%d mb%d         \n", Bin(Cur.Vision), Cur.X + Cur.viewX, Cur.Y + Cur.viewY, Cur.MX, Cur.MY, Cur.Mkey);
+  Print(Cblue,Avdat); snprintf(Avdat, 256, "c%d r%d x%d y%d wx%d wy%d xy%d     ", TermCR(&r), r, Cur.X, Cur.Y, Cur.viewX, Cur.viewY, Cur.dXY); Print(Cgreen,Avdat); }
 
 int Help(int argc, char *argv[], int flag) {
   if (argc > 1 && flag) { 
