@@ -143,16 +143,16 @@ typedef struct {int16_t X, Y, viewX, viewY, dXY, LkX, LkY, RkX, RkY;
                 char key[6]; } Cur_;
 Cur_ Cur = { 30,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,{0,0,0,0,0,0} };
 void ShowC(uint8_t on) {
-  char *src, *dst = Avdat, *sav; uint8_t i, c, p = CcurrentI; on &= 1; Cur.Vision &= 0xFE; Cur.Vision += on; if (Cur.Vision & 4) p = CredI;
-  int16_t x = Cur.X + Cur.viewX + 1, y = Cur.Y + Cur.viewY + 1;
-  *dst++ =  27;
-  *dst++ = '['; src = dst; do { *src++ = '0' + (y % 10); y /= 10; } while (y);
-  sav = src; i = (uint8_t)(src - dst) / 2; while(i--) { c = *dst; *dst++ = *--src; *src = c; }
-  *sav++ = ';'; dst = sav; do { *dst++ = '0' + (x % 10); x /= 10; } while (x);
-  src = dst; i = (uint8_t)(dst - sav) / 2; while(i--) { c = *sav; *sav++ = *--dst; *dst = c; }
-  *src++ = 'H'; if (on) { sav = Parse(p); MemCpy(src, (sav + 1), *sav); src += *sav; }
-  *src++ = ' '; if (on) { sav = Parse(Ccurrent); MemCpy(src, (sav + 1), *sav); src += *sav; }
-  write (1, Avdat, (src - Avdat)); }
+  char *src, *dst = Avdat, *sav; uint8_t i, c, p = CcurrentI;
+  Cur.Vision &= 0xFE; if (!(Cur.Vision & 8)) { on &= 1; Cur.Vision += on; if (Cur.Vision & 4) p = CredI;
+    int16_t x = Cur.X + Cur.viewX + 1, y = Cur.Y + Cur.viewY + 1; *dst++ =  27;
+    *dst++ = '['; src = dst; do { *src++ = '0' + (y % 10); y /= 10; } while (y);
+    sav = src; i = (uint8_t)(src - dst) / 2; while(i--) { c = *dst; *dst++ = *--src; *src = c; }
+    *sav++ = ';'; dst = sav; do { *dst++ = '0' + (x % 10); x /= 10; } while (x);
+    src = dst; i = (uint8_t)(dst - sav) / 2; while(i--) { c = *sav; *sav++ = *--dst; *dst = c; }
+    *src++ = 'H'; if (on) { sav = Parse(p); MemCpy(src, (sav + 1), *sav); src += *sav; }
+    *src++ = ' '; if (on) { sav = Parse(Ccurrent); MemCpy(src, (sav + 1), *sav); src += *sav; }
+    write (1, Avdat, (src - Avdat)); } }
 uint8_t ViewPort(void) {
   uint16_t control = 0, r, c = TermCR(&r); GetKey(Cur.key);
   if (Cur.key[0] == 27 && Cur.key[1] == K_ESC) return 0;
@@ -161,6 +161,7 @@ uint8_t ViewPort(void) {
   if (Cur.key[0] != 27) Cur.CodeKey = 0;
   else { Cur.CodeKey = (uint8_t)Cur.key[1];
       if (Cur.CodeKey == K_Ctrl_W) Cur.Vision ^= 4;
+      if (Cur.CodeKey == K_Ctrl_C) Cur.Vision ^= 8;
       if (Cur.key[1] == K_Mouse) { Cur.Mkey = (uint8_t)Cur.key[2]; Cur.Tic = 0; Cur.dXY = 1;
                                 if (Cur.Mkey == 32) { Cur.MX = (uint8_t)Cur.key[3] - 33; Cur.MY = (uint8_t)Cur.key[4] - 33; 
                                     Cur.X = Cur.MX - Cur.viewX; Cur.Y = Cur.MY - Cur.viewY; Cur.LkX = Cur.X; Cur.LkY = Cur.Y; }
@@ -217,7 +218,8 @@ uint32_t Bin( uint8_t x) {
   return c + 100000000; }
   
 void Show(void) { uint16_t r, c = TermCR(&r);
-  Print(Ccurrent,Home);
+  Print(Ccurrent,Home); if (34 > c) return;
+  Print(Cgrey," Esc cwms ctrl+w,ctrl+c,mouse+mkey\n");
   snprintf(Avdat, 100, "%d c%d r%d b%d x%d y%d         \n", Bin(Cur.Vision), c, r, Cur.Mkey, Cur.MX, Cur.MY);
   *Avdat = 'v'; if (StrLen(Avdat) > c) return;
   snprintf(Avdat + 100, 100, "x%d y%d wx%d wy%d xy%d     ", Cur.X, Cur.Y, Cur.viewX, Cur.viewY, Cur.dXY);
@@ -227,8 +229,7 @@ void Show(void) { uint16_t r, c = TermCR(&r);
 int Help(int argc, char *argv[], int flag) {
   if (argc > 1 && flag) { 
     if (MemCmp(argv[1], "-?",2) == 0 || MemCmp(argv[1], "-h",2) == 0 || MemCmp(argv[1], "-help",5) == 0) {
-      Print(Ccurrent,AltBufOff);
-      Print(CorangeB,"Created by Alexey Pozdnyakov in 07.02.2026 version 2.40\n");
-      Print(Cgold,"email: avp70ru@mail.ru https://github.com/AVPscan/Fresh"); }
+      Print(Ccurrent,AltBufOff); Print(CorangeB,"Created by Alexey Pozdnyakov");
+      Print(Corange," in 07.02.2026 version 2.41 email: avp70ru@mail.ru https://github.com/AVPscan\n"); }
     flag = 0; }
   return flag; }
