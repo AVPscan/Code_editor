@@ -96,8 +96,8 @@ void MemSet(void* buf, uint8_t val, size_t len);
 void MemCpy(void* dst, const void* src, size_t len);
 int8_t MemCmp(void* dst, const void* src, size_t len);
 void MemMove(void* dst, const void* src, size_t len);
-int8_t UTFinfo(unsigned char *s, uint8_t *len, uint8_t *Mrtl);
-int8_t UTFinfoTile(unsigned char *s, uint8_t *len, uint8_t *Mrtl, size_t rem);
+uint8_t UTFinfo(char *s, uint8_t *len, uint8_t *Mrtl);
+uint8_t UTFinfoTile(char *s, uint8_t *len, uint8_t *Mrtl, size_t rem);
 
 int SystemSwitch(void);
 void SetColour(uint8_t col);
