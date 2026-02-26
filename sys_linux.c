@@ -12,7 +12,7 @@
 #include <termios.h>   // tcgetattr, tcsetattr
 #include <fcntl.h>     // fcntl, O_NONBLOCK
 #include <unistd.h>    // read, write, chdir, readlink
-#include <stdint.h>    // uint8_t, uint64_t
+#include <stdint.h>    // uint8_t, Cell
 #include <sys/mman.h>  // mmap, munmap
 #include <sys/ioctl.h> // ioctl, TIOCGWINSZ
 #include "sys.h"
@@ -49,15 +49,15 @@ void GetKey(char *b) {
         if (j < 0) b[1] = 0; 
         if (b[1] == K_Mouse) { len = 4; while(--len) read(0, p++, 1); } } }
 
-size_t GetRam(size_t *size) { if (!*size) return 0;
-    size_t l = (*size + 0xFFF) & ~0xFFF; void *r = mmap(0, l, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+Cell GetRam(Cell *size) { if (!*size) return 0;
+    Cell l = (*size + 0xFFF) & ~0xFFF; void *r = mmap(0, l, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (r == MAP_FAILED) { r = 0; l = 0; }
-    *size = l; return (size_t)r; }
-void FreeRam(size_t addr, size_t size) { if (addr) munmap((void*)addr, size); }
+    *size = l; return (Cell)r; }
+void FreeRam(Cell addr, Cell size) { if (addr) munmap((void*)addr, size); }
 
 extern char **environ;
-void SWD(size_t addr) { if (!addr) return;
-    char *path = (char *)(addr); ssize_t len = readlink("/proc/self/exe", path, 1024); if (len <= 0) return;
+void SWD(Cell addr) { if (!addr) return;
+    char *path = (char *)(addr); Cell len = readlink("/proc/self/exe", path, 1024); if (len <= 0) return;
     path[len] = '\0';
     if (MemCmp(path, "/nix/store", 10) == 0) {
         for (char **env = environ; *env != NULL; env++) { char *e = *env;
@@ -68,7 +68,7 @@ void SWD(size_t addr) { if (!addr) return;
 typedef struct { uint16_t col , row; } TermState;
 TermState TS = {0};
 uint16_t TermCR(uint16_t *r) { *r = TS.row; return TS.col; }
-int16_t SyncSize(size_t addr, uint8_t flag) { if (!addr) return 0;
+int16_t SyncSize(Cell addr, uint8_t flag) { if (!addr) return 0;
     struct winsize ws, cur; if (ioctl(0, TIOCGWINSZ, &ws) < 0) return 0;
     if (ws.ws_col == TS.col && ws.ws_row == TS.row) return 0;
     if (flag) { uint8_t stable = 100;
@@ -77,24 +77,28 @@ int16_t SyncSize(size_t addr, uint8_t flag) { if (!addr) return 0;
             if (ioctl(0, TIOCGWINSZ, &cur) >= 0) if (cur.ws_col != ws.ws_col || cur.ws_row != ws.ws_row) { ws = cur; stable = 100; } } }
     TS.col = ws.ws_col; TS.row = ws.ws_row; return 1; }
 
-uint64_t GetCycles(void) {
-    union { uint64_t total; struct { uint32_t lo, hi; } part; } t;
-    __asm__ __volatile__ ("rdtsc" : "=a" (t.part.lo), "=d" (t.part.hi));
-    return t.total; }
+Cell GetCycles(void) {
+    Cell lo, hi;
+    __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
+    #if __SIZEOF_POINTER__ > 4
+      return (lo + (hi << 32));
+    #else
+      return lo;
+    #endif
+    }
 void Delay_ms(uint8_t ms) {
-    static uint64_t cpu_hz = 0;
-    if (cpu_hz == 0) { struct timespec ts = {0, 10000000L}; uint64_t start = GetCycles();
+    static Cell cpu_hz = 0;
+    if (cpu_hz == 0) { struct timespec ts = {0, 10000000L}; Cell start = GetCycles();
         nanosleep(&ts, NULL); cpu_hz = (GetCycles() - start) * 100; if (cpu_hz == 0) cpu_hz = 1; }
-    uint64_t total_cycles = (uint64_t)ms * (cpu_hz / 1000); uint64_t start_time = GetCycles();
+    Cell total_cycles = (Cell)ms * (cpu_hz / 1000); Cell start_time = GetCycles();
     if (ms > 2) { struct timespec sleep_ts = {0, (ms - 1) * 1000000L}; nanosleep(&sleep_ts, NULL); }
-    struct timespec check_start; clock_gettime(CLOCK_MONOTONIC_COARSE, &check_start); uint32_t safety = 0;
+    struct timespec check_start; clock_gettime(CLOCK_MONOTONIC_COARSE, &check_start); Cell safety = 0;
     while ((GetCycles() - start_time) < total_cycles) { __asm__ volatile("pause");
         if (++safety > 2000) { struct timespec now; clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
                                if (now.tv_sec > check_start.tv_sec) { cpu_hz = 0; break; }
                                safety = 0; } } }
-int GetSC(size_t addr) { if (!addr || !TS.col) return 1;
-    struct timespec cs, ce; char *p = (char *)(addr); MemSet(p, ' ', TS.col - 1); p[TS.col - 1] = '\r';
-    clock_gettime(CLOCK_MONOTONIC, &cs);
-    for(int i = 0; i < 100; i++) write(1, p, TS.col);
-    clock_gettime(CLOCK_MONOTONIC, &ce); 
-    long long ns = (ce.tv_sec - cs.tv_sec) * 1000000000LL + (ce.tv_nsec - cs.tv_nsec); return (int)((ns * 1000) / (TS.col * 100)); }
+Cell GetSC(Cell addr) { 
+    if (!addr || !TS.col) return 1;
+    char *p = (char *)(addr); MemSet(p, ' ', TS.col - 1); p[TS.col - 1] = '\r';
+    Cell start = GetCycles(); for(Cell i = 0; i < 100; i++) write(1, p, TS.col);
+    Cell end = GetCycles(); return (end - start) / (TS.col * 10); }

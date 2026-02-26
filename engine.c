@@ -30,11 +30,11 @@ char      *Cvdat      = NULL;
 #define SizeCOL       CellLine * 2
 #define SizeCL        CellLine * 4
 #define SizeBKey      SKey * 4
-#define SizeData      ((size_t)String * SizeCL)
-#define SizeOffset    ((size_t)String * SizeCOL)
-#define SizeAttr      ((size_t)String * CellLine)
-#define SizeVizLen    ((size_t)String * CellLine)
-#define SizeLen       ((size_t)String * CellLine)
+#define SizeData      ((Cell)String * SizeCL)
+#define SizeOffset    ((Cell)String * SizeCOL)
+#define SizeAttr      ((Cell)String * CellLine)
+#define SizeVizLen    ((Cell)String * CellLine)
+#define SizeLen       ((Cell)String * CellLine)
 #define SizePalBuff   32 * 32
 #define SizeKeyBuf    SKey * 12
 #define SizeVBuff     (34 * 1024 * 1024)
@@ -47,37 +47,37 @@ char      *Cvdat      = NULL;
 #define Parse(cbi)    (Cpdat + ((cbi) << 5))        // 0-31 All
 #define Key(n)        (Ckbuf + ((n) << 3))          // ( tic mrtl vlen len UTF8[4 byte])[8 bytes]
 
-size_t StrLen(char *s) { if (!s) return 0;
+Cell StrLen(char *s) { if (!s) return 0;
     char *f = s; while (*f++);
     return (--f - s); }
-void MemSet(void* buf, uint8_t val, size_t len) {
+void MemSet(void* buf, uint8_t val, Cell len) {
     uint8_t *p = (uint8_t *)buf; while (len && ((Cell)p & (SizeCell - 1))) { *p++ = val; len--; }
     if (len >= SizeCell) {
         Cell vW = val * ((Cell)-1 / 255); Cell *pW = (Cell *)p;
-        size_t i = len / SizeCell; len &= (SizeCell - 1); while (i--) *pW++ = vW;
+        Cell i = len / SizeCell; len &= (SizeCell - 1); while (i--) *pW++ = vW;
         p = (uint8_t *)pW; }
     while (len--) *p++ = val; }
-void MemCpy(void* dst, void* src, size_t len) {
+void MemCpy(void* dst, void* src, Cell len) {
     uint8_t *d = (uint8_t *)dst; uint8_t *s = (uint8_t *)src;
     while (len && ((Cell)d & (SizeCell - 1))) { *d++ = *s++; len--; }
     if (len >= SizeCell && ((Cell)s & (SizeCell - 1)) == 0) {
-        Cell *dW = (Cell *)d; Cell *sW = (Cell *)s; size_t i = len / SizeCell;
+        Cell *dW = (Cell *)d; Cell *sW = (Cell *)s; Cell i = len / SizeCell;
         len &= (SizeCell - 1); while (i--) *dW++ = *sW++;
         d = (uint8_t *)dW; s = (uint8_t *)sW; }
     while (len--) *d++ = *s++ ; }
-void MemMove(void* dst, void* src, size_t len) {
+void MemMove(void* dst, void* src, Cell len) {
     if (dst > src) { uint8_t *d = (uint8_t *)dst; uint8_t *s = (uint8_t *)src;
         d += len; s += len; while (len && ((Cell)d & (SizeCell - 1))) { *--d = *--s; len--; }
         if (len >= SizeCell && ((Cell)s & (SizeCell - 1)) == 0) {
-            Cell *dW = (Cell *)d; Cell *sW = (Cell *)s; size_t i = len / SizeCell;
+            Cell *dW = (Cell *)d; Cell *sW = (Cell *)s; Cell i = len / SizeCell;
             len &= (SizeCell - 1); while (i--) *--dW = *--sW;
             d = (uint8_t *)dW; s = (uint8_t *)sW; } }
     else if (dst < src ) MemCpy(dst, src, len); }
-int8_t MemCmp(void* dst, void* src, size_t len) {
+int8_t MemCmp(void* dst, void* src, Cell len) {
     uint8_t *d = (uint8_t *)dst; uint8_t *s = (uint8_t *)src;
     while (len && ((Cell)d & (SizeCell - 1))) { len--; if (*d++ != *s++) return (int8_t)(*--d - *--s); }
     if (len >= SizeCell && ((Cell)s & (SizeCell - 1)) == 0) {
-        Cell *dW = (Cell *)d; Cell *sW = (Cell *)s; size_t i = len / SizeCell;
+        Cell *dW = (Cell *)d; Cell *sW = (Cell *)s; Cell i = len / SizeCell;
         len %= SizeCell; while (i-- && (*dW++ == *sW++));
         if (i + 1) { --dW; --sW; len += SizeCell; }
         d = (uint8_t *)dW; s = (uint8_t *)sW; }
@@ -106,7 +106,7 @@ uint8_t UTFinfo(char *s, uint8_t *len, uint8_t *Mrtl) {
         (cp >= 0xFE30 && cp <= 0xFE6F) || (cp >= 0xFF00 && cp <= 0xFF60) || (cp >= 0xFFE0 && cp <= 0xFFE6) || 
         (cp >= 0x20000 && cp <= 0x2FFFD) || (cp >= 0x30000 && cp <= 0x3FFFD) || (cp >= 0x1F300)) return 2;      // двойной
     return 1; }
-uint8_t UTFinfoTile(char *s, uint8_t *len, uint8_t *Mrtl, size_t rem) {
+uint8_t UTFinfoTile(char *s, uint8_t *len, uint8_t *Mrtl, Cell rem) {
     *len = 0; *Mrtl = 0; if (rem == 0) return 5;                                                                // нет влезет и не проверяем
     *len = 1;
     if ((*s & 0xE0) == 0xC0 && rem < 2) return 5;
@@ -114,11 +114,11 @@ uint8_t UTFinfoTile(char *s, uint8_t *len, uint8_t *Mrtl, size_t rem) {
     else if ((*s & 0xF8) == 0xF0 && rem < 4) return 5;
     return UTFinfo(s, len, Mrtl); }
     
-typedef struct { size_t addr, size; } Vram_;
+typedef struct { Cell addr, size; } Vram_;
 Vram_ VRam = {0};
 void SetColour(uint8_t col) { if (!(col &= Mcol)) col = 3;
   col <<= 2; MemCpy(Parse(Ccurrent), Parse(col), 128); }
-void InitVram(size_t addr, size_t size) { if (!addr || (size < SizeVram)) return;
+void InitVram(Cell addr, Cell size) { if (!addr || (size < SizeVram)) return;
   char* colors[] = { Green, ColorOff, Grey, Green, Red, Blue, Orange, Gold };
   char* modes[] = { "\007;22;27m", "\006;22;7m", "\006;1;27m", "\005;1;7m" };
   uint8_t lm, cbi, ca, c = StrLen(ColorOff), i = 8; char *ac, *dst;
@@ -135,8 +135,8 @@ typedef struct {int16_t X, Y, viewX, viewY, LkX, LkY, MkX, MkY, RkX, RkY;
                 char key[6]; uint8_t Kon, Kpop, Kpush; } Cur_;
 Cur_ Cur = {33,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,{0,0,0,0,0,0},0,0,0};
 void ShowC(uint8_t on) {
-  char *src, *dst = Cvdat, *sav; uint8_t i, c, p = CcurrentI;
-  Cur.Vision &= 0xFE; if (!(Cur.Vision & 8)) { Cur.Vision += (on & 1); if (Cur.Vision & 4) p = CredI;
+  char *src, *dst = Cvdat, *sav; uint8_t i, c, p = CcurrentI; Cur.Vision &= 0xFE;
+  if (!(Cur.Vision & 8)) { Cur.Vision += (on & 1); if (Cur.Vision & 4) p = CredI;
     int16_t x = Cur.X + Cur.viewX + 1, y = Cur.Y + Cur.viewY + 1; *dst++ =  27;
     *dst++ = '['; src = dst; do { *src++ = '0' + (y % 10); y /= 10; } while (y);
     sav = src; i = (uint8_t)(src - dst) / 2; while(i--) { c = *dst; *dst++ = *--src; *src = c; }
@@ -150,30 +150,29 @@ uint8_t ViewPort(void) {
   if (Cur.Vision & 1) ShowC(Off);
   if (Cur.Kpush != vlen) { GetKey(Cur.key); Cur.Kon++; }
   if (Cur.Kon) {
-    if (Cur.key[0] == 27) { Cur.Kon = (uint8_t)Cur.key[1];
+    if (Cur.key[0] == 27) { Cur.Kon = (uint8_t)Cur.key[1]; dst = Cur.key; src = Key(Cur.Kpush);
+      if ((vlen = UTFinfo(Cur.key, &len, &mrt)) != 4) if (vlen == 3) { dst++; if (Cur.Kon == K_Mouse) len = 4; }
       if (Cur.Kon == K_ESC) return 0;
-      else if (Cur.Kon == K_F4) { Cur.Vision ^= 2; control++; }
-      else if (Cur.Kon == K_F3) { Cur.Vision ^= 4; control++; }
-      else if (Cur.Kon == K_F2) { Cur.Vision ^= 8; control++; }
-      else if (Cur.Kon == K_F1) { Cur.Vision ^= 16; control++; }
-      else if ((Cur.Kon & 0xF8) == 0x20) control++;
-      else if (Cur.Kon == K_Mouse) { Cur.Mkey = (uint8_t)Cur.key[2];
-                                if ((Cur.Mkey & 0xFC) == 32) {
-                                  Cur.MX = (uint8_t)Cur.key[3] - 33; Cur.MY = (uint8_t)Cur.key[4] - 33;
-                                  Cur.X = Cur.MX - Cur.viewX; Cur.Y = Cur.MY - Cur.viewY;
-                                  if (Cur.Mkey == 32) { Cur.LkX = Cur.X; Cur.LkY = Cur.Y; control++; }
-                                  else if (Cur.Mkey == 33) { Cur.MkX = Cur.X; Cur.MkY = Cur.Y; control++; }
-                                  else if (Cur.Mkey == 34) { Cur.RkX = Cur.X; Cur.RkY = Cur.Y; control++; } }
-                                else if (Cur.Mkey == 96) { mdxy--; control++; }
-                                else if (Cur.Mkey == 97) { mdxy++; control++; }
-                                if (mdxy) { if (!(Cur.Vision & 6)) Cur.viewY += mdxy; 
-                                            Cur.Y += mdxy; } } }
+      else  if (Cur.Kon != K_NO) {
+            if (Cur.Kon == K_F4) { Cur.Vision ^= 2; control++; }
+            else if (Cur.Kon == K_F3) { Cur.Vision ^= 4; control++; }
+            else if (Cur.Kon == K_F2) { Cur.Vision ^= 8; control++; }
+            else if (Cur.Kon == K_F1) { Cur.Vision ^= 16; control++; }
+            else if ((Cur.Kon & 0xF8) == 0x20) control++;
+            else if (Cur.Kon == K_Mouse) { Cur.Mkey = (uint8_t)Cur.key[2];
+                    if ((Cur.Mkey & 0xFC) == 32) {
+                      Cur.MX = (uint8_t)Cur.key[3] - 33; Cur.MY = (uint8_t)Cur.key[4] - 33;
+                      Cur.X = Cur.MX - Cur.viewX; Cur.Y = Cur.MY - Cur.viewY;
+                      if (Cur.Mkey == 32) { Cur.LkX = Cur.X; Cur.LkY = Cur.Y; control++; }
+                      else if (Cur.Mkey == 33) { Cur.MkX = Cur.X; Cur.MkY = Cur.Y; control++; }
+                      else if (Cur.Mkey == 34) { Cur.RkX = Cur.X; Cur.RkY = Cur.Y; control++; } }
+                      else if (Cur.Mkey == 96) { mdxy--; control++; }
+                      else if (Cur.Mkey == 97) { mdxy++; control++; }
+                    if (mdxy) { if (!(Cur.Vision & 6)) Cur.viewY += mdxy; 
+                                Cur.Y += mdxy; } } } } 
     if (Cur.Kon) {
-      if ((vlen = UTFinfo(Cur.key, &len, &mrt)) != 4) {
-        dst = Cur.key; src = Key(Cur.Kpush); if (vlen == 3) { dst++; if (Cur.key[1] == K_Mouse) len = 4; } }
-      
       if (Cur.key[0] != 27) Cur.CodeKey = 0;
-      else { Cur.CodeKey = (uint8_t)Cur.key[1];
+      else { Cur.CodeKey = Cur.Kon;
 
         if (Cur.CodeKey != Cur.PenCK) { Cur.PenCK = Cur.CodeKey; Cur.Tic = 0; Cur.dXY = 1; }
         if (!++Cur.Tic) Cur.TOver++;
@@ -212,14 +211,14 @@ void Print(uint8_t n, char *str) { n &= Mcbi; if (!str) return;
   sav = Parse(n); len = *sav++; MemCpy(dst, sav, len); dst += len;
   len = StrLen(str); MemCpy(dst, str, len); dst += len;
   sav = Parse(Ccurrent); len = *sav++; MemCpy(dst, sav, len); dst += len; write(1, Cvdat + 1024, (dst - Cvdat - 1024)); }
-int SystemSwitch(void) {
+Cell SystemSwitch(void) {
   static uint8_t flag = 1;
   if (flag) { VRam.size = SizeVram; if (!(VRam.addr = GetRam(&VRam.size))) return 0;
               flag--; SWD(VRam.addr); InitVram(VRam.addr,VRam.size); SwitchRaw(); Delay_ms(0);
               SyncSize(VRam.addr,Off); Print(Ccurrent,AltBufOn Reset HideCur WrapOn Cls MouseX10on); }
   else { flag++; if (VRam.size) { SwitchRaw(); Print(Ccurrent,MouseX10off AltBufOff WrapOn ShowCur Reset); FreeRam(VRam.addr, VRam.size); } }
   return 1; }
-int Help(int argc, char *argv[], int flag) {
+Cell Help(Cell argc, char *argv[], Cell flag) {
   if (argc > 1) { 
     if (MemCmp(argv[1], "-?",2) == 0 || MemCmp(argv[1], "-h",2) == 0 || MemCmp(argv[1], "-help",5) == 0) {
       if (flag) { Print(Ccurrent,AltBufOff); Print(CorangeIB," Created by Alexey Pozdnyakov ");
@@ -233,7 +232,7 @@ uint32_t Bin( uint8_t x) {
   uint32_t c = 0, i = 8; while(i--){ c *= 10; if (x & 0x80) c++;
                                     x <<= 1; }
   return c + 100000000; }
-void Show(void) { uint16_t r, c = TermCR(&r); size_t o, m = VRam.size;
+void Show(void) { uint16_t r, c = TermCR(&r); Cell o, m = VRam.size;
   Print(Ccurrent,Home); if (18 > c) return;
   Print(Cgrey," esc 842  F2 F3 F4\n");
   o = m % (1024 * 1024); m /= (1024 * 1024); if (o) m++;

@@ -10,9 +10,9 @@
 #include "sys.h"
 
 int main(int argc, char *argv[]) {
-  int flag = SystemSwitch(); flag = Help(argc, argv, flag);
+  Cell c_argc = (Cell)argc; Cell flag = SystemSwitch(); flag = Help(c_argc, argv, flag);
   if (flag) {
     while (ViewPort()) {
       Show();
       Delay_ms(20); } }
-   return SystemSwitch(); }
+   return (int)SystemSwitch(); }

@@ -91,30 +91,30 @@ enum { Ccurrent, CcurrentI, CcurrentB, CcurrentIB, Cdef, CdefI, CdefB, CdefIB,
       Cred, CredI, CredB, CredIB, Cblue, CblueI, CblueB, CblueIB,
       Corange, CorangeI, CorangeB, CorangeIB, Cgold, CgoldI, CgoldB, CgoldIB };
 
-size_t StrLen(char *s);
-void MemSet(void* buf, uint8_t val, size_t len);
-void MemCpy(void* dst, void* src, size_t len);
-int8_t MemCmp(void* dst, void* src, size_t len);
-void MemMove(void* dst, void* src, size_t len);
+Cell StrLen(char *s);
+void MemSet(void* buf, uint8_t val, Cell len);
+void MemCpy(void* dst, void* src, Cell len);
+int8_t MemCmp(void* dst, void* src, Cell len);
+void MemMove(void* dst, void* src, Cell len);
 uint8_t UTFinfo(char *s, uint8_t *len, uint8_t *Mrtl);
-uint8_t UTFinfoTile(char *s, uint8_t *len, uint8_t *Mrtl, size_t rem);
+uint8_t UTFinfoTile(char *s, uint8_t *len, uint8_t *Mrtl, Cell rem);
 
-int SystemSwitch(void);
+Cell SystemSwitch(void);
 void SetColour(uint8_t col);
 uint8_t ViewPort(void);
 
 void SwitchRaw(void);
 void GetKey(char *b);
-size_t GetRam(size_t *size);
-void FreeRam(size_t addr, size_t size);
-void SWD(size_t addr);
+Cell GetRam(Cell *size);
+void FreeRam(Cell addr, Cell size);
+void SWD(Cell addr);
 uint16_t TermCR(uint16_t *r);
-int16_t SyncSize(size_t addr, uint8_t flag);
-uint64_t GetCycles(void);
+int16_t SyncSize(Cell addr, uint8_t flag);
+Cell GetCycles(void);
 void Delay_ms(uint8_t ms);
-int GetSC(size_t addr);
+Cell GetSC(Cell addr);
 
 void Print(uint8_t n, char *str);
 void Show(void);
-int Help(int argc, char *argv[], int flag);
+Cell Help(Cell argc, char *argv[], Cell flag);
 #endif /* SYS_H */

@@ -11,7 +11,7 @@
 #include <termios.h>        // tcgetattr, tcsetattr
 #include <fcntl.h>          // open, O_RDONLY, O_NONBLOCK
 #include <unistd.h>         // read, write, chdir, close
-#include <stdint.h>         // uint8_t, uint64_t
+#include <stdint.h>         // uint8_t
 #include <sys/ioctl.h>      // ioctl, TIOCGWINSZ
 #include <sys/mman.h>       // mmap, munmap
 #include <mach-o/dyld.h>    // _NSGetExecutablePath
@@ -41,7 +41,7 @@ void GetKey(char *b) {
         return; }
     if (c > 31 && c < 127) return;
     *p++ = 27; *p = c; if (c != 27) return; 
-    unsigned char *s1; const unsigned char *s2; int8_t j = (int)(sizeof(NameId)/sizeof(KeyIdMap));
+    unsigned char *s1; const unsigned char *s2; int8_t j = (Cell)(sizeof(NameId)/sizeof(KeyIdMap));
     if (read(0, p, 1) > 0) { s1 = p; while (((s1 - p) < 5) && (read(0, ++s1, 1) > 0)) if (*s1 > 63) break;
         if (*s1 < 64) while((read(0,&c,1) > 0) && (c < 64));
         while(j--) { s2 = (const unsigned char*)NameId[j].name;
@@ -51,13 +51,13 @@ void GetKey(char *b) {
         if (j < 0) b[1] = 0; 
         if (b[1] == K_Mouse) { len = 4; while(--len) read(0, p++, 1); } } }
 
-size_t GetRam(size_t *size) { if (!*size) return 0;
-    size_t l = (*size + 0xFFF) & ~0xFFF; void *r = mmap(0, l, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+Cell GetRam(Cell *size) { if (!*size) return 0;
+    Cell l = (*size + 0xFFF) & ~0xFFF; void *r = mmap(0, l, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (r == MAP_FAILED) { r = 0; l = 0; }
-    *size = l; return (size_t)r; }
-void FreeRam(size_t addr, size_t size) { if (addr) munmap((void*)addr, size); }
+    *size = l; return (Cell)r; }
+void FreeRam(Cell addr, Cell size) { if (addr) munmap((void*)addr, size); }
 
-void SWD(size_t addr) { if (!addr) return;
+void SWD(Cell addr) { if (!addr) return;
     uint32_t len = 4096; char *path = (char *)(addr);
     if (_NSGetExecutablePath(path, &len) != 0) return;
     for (char *p = path + len; p > path; p--) if (*p == '/') { *p = '\0'; chdir(path); break; } }
@@ -65,7 +65,7 @@ void SWD(size_t addr) { if (!addr) return;
 typedef struct { uint16_t col , row; } TermState;
 TermState TS = {0};
 uint16_t TermCR(uint16_t *r) { *r = TS.row; return TS.col; }
-int16_t SyncSize(size_t addr, uint8_t flag) { if (!addr) return 0;
+int16_t SyncSize(Cell addr, uint8_t flag) { if (!addr) return 0;
     struct winsize ws, cur; if (ioctl(0, TIOCGWINSZ, &ws) < 0) return 0;
     if (ws.ws_col == TS.col && ws.ws_row == TS.row) return 0;
     if (flag) { uint8_t stable = 100;
@@ -73,33 +73,30 @@ int16_t SyncSize(size_t addr, uint8_t flag) { if (!addr) return 0;
             Delay_ms(10); stable -= 10;
             if (ioctl(0, TIOCGWINSZ, &cur) >= 0) if (cur.ws_col != ws.ws_col || cur.ws_row != ws.ws_row) { ws = cur; stable = 100; } } }
     TS.col = ws.ws_col; TS.row = ws.ws_row; return 1; }
-  
-static mach_timebase_info_data_t timebase = {0};
-static uint64_t cpu_hz = 0;
-uint64_t GetCycles(void) { return mach_absolute_time(); }
-void Delay_ms(uint8_t ms) {
-    if (timebase.denom == 0) mach_timebase_info(&timebase);
-    if (cpu_hz == 0) {
-        uint64_t start = mach_absolute_time(); struct timespec ts = {0, 10000000L}; nanosleep(&ts, NULL);
-        uint64_t end = mach_absolute_time(); uint64_t elapsed_ticks = end - start;
-        uint64_t elapsed_ns = elapsed_ticks * timebase.numer / timebase.denom;
-        cpu_hz = (elapsed_ns * 100) / 10;
-        if (cpu_hz == 0) cpu_hz = 1; }
-    uint64_t target_ns = (uint64_t)ms * 1000000ULL; uint64_t target_ticks = target_ns * timebase.denom / timebase.numer;
-    uint64_t start_time = mach_absolute_time();
-    if (ms > 2) {
-        struct timespec sleep_ts = {0, (ms - 1) * 1000000L}; nanosleep(&sleep_ts, NULL); }
-    uint64_t check_start = mach_absolute_time(); uint32_t safety = 0;
-    while ((mach_absolute_time() - start_time) < target_ticks) {
-        __asm__ volatile("yield");
-        if (++safety > 2000) {
-            uint64_t now = mach_absolute_time();
-            if ((now - check_start) > (1ULL * 1000000000ULL * timebase.denom / timebase.numer)) { cpu_hz = 0; break; }
-            safety = 0; check_start = now; } } }
 
-int GetSC(size_t addr) { if (!addr || !TS.col) return 1;
-    struct timespec cs, ce; char *p = (char *)(addr); MemSet(p, ' ', TS.col - 1); p[TS.col - 1] = '\r';
-    clock_gettime(CLOCK_MONOTONIC_RAW, &cs);
-    for(int i = 0; i < 100; i++) write(1, p, TS.col);
-    clock_gettime(CLOCK_MONOTONIC_RAW, &ce); 
-    long long ns = (ce.tv_sec - cs.tv_sec) * 1000000000LL + (ce.tv_nsec - cs.tv_nsec); return (int)((ns * 1000) / (TS.col * 100)); }
+Cell GetCycles(void) { return (Cell)mach_absolute_time(); }
+static mach_timebase_info_data_t timebase = {0};
+void Delay_ms(uint8_t ms) {
+    static Cell tp_ms = 0;
+    if (timebase.denom == 0) mach_timebase_info(&timebase);
+    if (tp_ms == 0) { Cell start = GetCycles(); 
+        struct timespec ts = {0, 10000000L}; nanosleep(&ts, NULL);tp_ms = (GetCycles() - start) / 10;
+        if (tp_ms == 0) tp_ms = 1; }
+    Cell total_ticks = (Cell)ms * tp_ms; Cell start_time = GetCycles();
+    if (ms > 2) { struct timespec sleep_ts = {0, (ms - 1) * 1000000L}; nanosleep(&sleep_ts, NULL); }
+    Cell check_start = GetCycles(), safety = 0;
+    const Cell sec_ticks = (1000000000ULL * timebase.denom / timebase.numer);
+    while ((GetCycles() - start_time) < total_ticks) {
+        #if defined(__arm64__) || defined(__aarch64__)
+          __asm__ volatile("yield");
+        #else
+          __asm__ volatile("pause");
+        #endif
+        if (++safety > 2000) { Cell now = GetCycles();
+            if ((now - check_start) > sec_ticks) { tp_ms = 0; break; }
+            safety = 0; check_start = now; } } }
+Cell GetSC(Cell addr) { 
+    if (!addr || !TS.col) return 1;
+    char *p = (char *)(addr); MemSet(p, ' ', TS.col - 1); p[TS.col - 1] = '\r';
+    Cell start = GetCycles(); for(Cell i = 0; i < 100; i++) write(1, p, TS.col);
+    Cell end = GetCycles(); return (end - start) / (TS.col * 10); }

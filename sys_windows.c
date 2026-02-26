@@ -62,31 +62,20 @@ void GetKey(char *b) {
         if (j < 0) *p = 0;
         if (*p++ == K_Mouse) { len = 4; while(--len) _read(0, p++, 1); } }
 
-size_t GetRam(size_t *size) { if (!*size) return 0;
-    size_t l = (*size + 0xFFF) & ~0xFFF; void *r = VirtualAlloc(NULL, l, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+Cell GetRam(Cell *size) { if (!*size) return 0;
+    Cell l = (*size + 0xFFF) & ~0xFFF; void *r = VirtualAlloc(NULL, l, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!r) l = 0;
-    *size = l; return (size_t)r; }
-void FreeRam(size_t addr, size_t size) { if (addr) VirtualFree((void*)addr, 0, MEM_RELEASE); }
+    *size = l; return (Cell)r; }
+void FreeRam(Cell addr, Cell size) { if (addr) VirtualFree((void*)addr, 0, MEM_RELEASE); }
 
-void SWD(size_t addr) { if (!addr) return;
+void SWD(Cell addr) { if (!addr) return;
     char *path = (char *)(addr); DWORD len = GetModuleFileNameA(NULL, path, 1024); if (len == 0) return;
     for (char *p = path + len; p > path; p--) if (*p == '\\' || *p == '/') { *p = '\0'; SetCurrentDirectoryA(path); break; } }
-
-
-uint64_t GetCycles(void) {
-    LARGE_INTEGER li; QueryPerformanceCounter(&li); return (uint64_t)li.QuadPart; }
-
-void Delay_ms(uint8_t ms) {
-    static uint64_t freq = 0;
-    if (!freq) { LARGE_INTEGER li; QueryPerformanceFrequency(&li); freq = li.QuadPart; }
-    uint64_t start_time = GetCycles(); uint64_t target_ticks = (freq * ms) / 1000;
-    if (ms > 15) Sleep(ms - 10); 
-    while ((GetCycles() - start_time) < target_ticks) { __asm__ volatile ("pause");  } }
     
 typedef struct { uint16_t col , row; } TermState;
 TermState TS = {0};
 uint16_t TermCR(uint16_t *r) { *r = TS.row; return TS.col; }
-int16_t SyncSize(size_t addr, uint8_t flag) { 
+int16_t SyncSize(Cell addr, uint8_t flag) { 
     if (!addr) return 0;
     static HANDLE hOut = NULL; 
     if (!hOut) hOut = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -105,12 +94,34 @@ int16_t SyncSize(size_t addr, uint8_t flag) {
                 if (cur_w != w || cur_h != h) { w = cur_w; h = cur_h; stable = 100; } } } }
     TS.col = w; TS.row = h; return 1; }
 
-int GetSC(size_t addr) { 
+Cell GetCycles(void) {
+    Cell lo, hi;
+    __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
+    #if __SIZEOF_POINTER__ > 4
+      return (lo + (hi << 32));
+    #else
+      return lo;
+    #endif
+    }
+void Delay_ms(uint8_t ms) {
+    static Cell cpu_hz = 0;
+    if (cpu_hz == 0) {
+        LARGE_INTEGER freq, c1, c2; QueryPerformanceFrequency(&freq); QueryPerformanceCounter(&c1);
+        Cell start = GetCycles();
+        do { QueryPerformanceCounter(&c2); } 
+        while ((c2.QuadPart - c1.QuadPart) < freq.QuadPart / 100);
+        cpu_hz = (GetCycles() - start) * 100; if (cpu_hz == 0) cpu_hz = 1; }
+    Cell total = (Cell)ms * (cpu_hz / 1000);
+    Cell start_time = GetCycles();
+    if (ms > 15) Sleep(ms - 10); 
+    LARGE_INTEGER f, q1, q2; QueryPerformanceFrequency(&f); QueryPerformanceCounter(&q1); Cell safety = 0;
+    while ((GetCycles() - start_time) < total) { __asm__ volatile ("pause");
+        if (++safety > 2000) { QueryPerformanceCounter(&q2);
+            if ((Cell)(q2.QuadPart - q1.QuadPart) > (Cell)f.QuadPart) { cpu_hz = 0; break; }
+            safety = 0; q1 = q2; } } }
+Cell GetSC(Cell addr) { 
     if (!addr || !TS.col) return 1;
-    LARGE_INTEGER freq, cs, ce; QueryPerformanceFrequency(&freq); char *p = (char *)(addr); 
-    MemSet(p, ' ', TS.col - 1); p[TS.col - 1] = '\r';
-    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE); DWORD written; QueryPerformanceCounter(&cs);
-    for(int i = 0; i < 100; i++) WriteFile(hOut, p, TS.col, &written, NULL);
-    QueryPerformanceCounter(&ce); long long ns = (ce.QuadPart - cs.QuadPart) * 1000000000LL / freq.QuadPart;
-    return (int)((ns * 1000) / (TS.col * 100)); }
-
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE); DWORD written;
+    char *p = (char *)(addr); MemSet(p, ' ', TS.col - 1); p[TS.col - 1] = '\r';
+    Cell start = GetCycles(); for(Cell i = 0; i < 100; i++) WriteFile(hOut, p, TS.col, &written, NULL);
+    Cell end = GetCycles(); return (end - start) / (TS.col * 10); }
