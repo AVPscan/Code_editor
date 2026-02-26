@@ -119,12 +119,6 @@ uint8_t UTFinfoTile(char *s, uint8_t *len, uint8_t *Mrtl, size_t rem) {
 typedef struct { size_t addr, size; } Vram_;
 Vram_ VRam = {0};
 
-void Print(uint8_t n, char *str) { n &= Mcbi; if (!str) return;
-  char *dst = Cvdat + 1024, *sav; uint16_t len;
-  sav = Parse(n); len = *sav++; MemCpy(dst, sav, len); dst += len;
-  len = StrLen(str); MemCpy(dst, str, len); dst += len;
-  sav = Parse(Ccurrent); len = *sav++; MemCpy(dst, sav, len); dst += len; write(1, Cvdat + 1024, (dst - Cvdat - 1024)); }
-
 void SetColour(uint8_t col) { if (!(col &= Mcol)) col = 3;
   col <<= 2; MemCpy(Parse(Ccurrent), Parse(col), 128); }
 void InitVram(size_t addr, size_t size) { if (!addr || (size < SizeVram)) return;
@@ -140,10 +134,10 @@ void InitVram(size_t addr, size_t size) { if (!addr || (size < SizeVram)) return
             while(c) { ac = (Cvdat + ((--c) << 5)); cbi = (c << 2) + i; ca = (*ac++ - 1);
                 dst = Parse(cbi); *dst++ = (lm + ca); MemCpy(dst, ac, ca); MemCpy(dst + ca, mode, lm); } } }
 
-typedef struct {int16_t X, Y, viewX, viewY, dXY, LkX, LkY, RkX, RkY;
+typedef struct {int16_t X, Y, viewX, viewY, dXY, LkX, LkY, MkX, MkY, RkX, RkY;
                 uint16_t oldRows, oldCols; uint8_t Vision, CodeKey, PenCK, Tic, TOver, Mkey, MX, MY;
                 char key[6]; uint8_t Kon, Kpop, Kpush; } Cur_;
-Cur_ Cur = {33,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,{0,0,0,0,0,0},0,0,0};
+Cur_ Cur = {33,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,{0,0,0,0,0,0},0,0,0};
 void ShowC(uint8_t on) {
   char *src, *dst = Cvdat, *sav; uint8_t i, c, p = CcurrentI;
   Cur.Vision &= 0xFE; if (!(Cur.Vision & 8)) { on &= 1; Cur.Vision += on; if (Cur.Vision & 4) p = CredI;
@@ -169,11 +163,12 @@ uint8_t ViewPort(void) {
       if (Cur.CodeKey == K_F4) Cur.Vision ^= 2;
       if (Cur.CodeKey == K_F3) Cur.Vision ^= 4;
       if (Cur.CodeKey == K_F2) Cur.Vision ^= 8;
-      if (Cur.key[1] == K_Mouse) { Cur.Mkey = (uint8_t)Cur.key[2]; Cur.Tic = 0; Cur.dXY = 1;
-                                if (Cur.Mkey == 32) { Cur.MX = (uint8_t)Cur.key[3] - 33; Cur.MY = (uint8_t)Cur.key[4] - 33; 
-                                    Cur.X = Cur.MX - Cur.viewX; Cur.Y = Cur.MY - Cur.viewY; Cur.LkX = Cur.X; Cur.LkY = Cur.Y; }
-                                else if (Cur.Mkey == 34) { Cur.MX = (uint8_t)Cur.key[3] - 33; Cur.MY = (uint8_t)Cur.key[4] - 33; 
-                                    Cur.X = Cur.MX - Cur.viewX; Cur.Y = Cur.MY - Cur.viewY; Cur.RkX = Cur.X; Cur.RkY = Cur.Y; }
+      if (Cur.CodeKey == K_Mouse) { Cur.Mkey = (uint8_t)Cur.key[2];
+                                if ((Cur.Mkey & 0xFC) == 32) { Cur.MX = (uint8_t)Cur.key[3] - 33;
+                                    Cur.MY = (uint8_t)Cur.key[4] - 33; Cur.X = Cur.MX - Cur.viewX; Cur.Y = Cur.MY - Cur.viewY;
+                                    if (Cur.Mkey == 32) { Cur.LkX = Cur.X; Cur.LkY = Cur.Y; }
+                                    else if (Cur.Mkey == 33) { Cur.MkX = Cur.X; Cur.MkY = Cur.Y; }
+                                    else if (Cur.Mkey == 34) { Cur.RkX = Cur.X; Cur.RkY = Cur.Y; } }
                                 else if (Cur.Mkey == 96) control--;
                                 else if (Cur.Mkey == 97) control++; 
                                 if (control) { if (!(Cur.Vision & 6)) Cur.viewY += control; 
@@ -202,28 +197,41 @@ uint8_t ViewPort(void) {
       else if (Cur.X + Cur.viewX >= c) Cur.X = c - 1 - Cur.viewX;
       if (Cur.Y + Cur.viewY < 0) Cur.Y = -Cur.viewY;
       else if (Cur.Y + Cur.viewY >= r) Cur.Y = r - 1 - Cur.viewY; } }
-  control = SyncSize(VRam.addr,1);
+  control = SyncSize(VRam.addr,On);
   if (control) { c = TermCR(&r);
       if (Cur.X + Cur.viewX >= c) Cur.X = c - 1 - Cur.viewX;
       else if (Cur.X + Cur.viewX < 0)  Cur.X = -Cur.viewX;
       if (Cur.Y + Cur.viewY >= r) Cur.Y = r - 1 - Cur.viewY;
       else if (Cur.Y + Cur.viewY < 0)  Cur.Y = -Cur.viewY;
-      Cur.oldCols = c; Cur.oldRows = r; Print(Ccurrent,Home); MemSet(Cvdat,' ',c * r);  write(1, Cvdat, (c * r)); }
+      Cur.oldCols = c; Cur.oldRows = r; }
   ShowC(On); return 1; }
 
+void Print(uint8_t n, char *str) { n &= Mcbi; if (!str) return;
+  char *dst = Cvdat + 1024, *sav; uint16_t len;
+  sav = Parse(n); len = *sav++; MemCpy(dst, sav, len); dst += len;
+  len = StrLen(str); MemCpy(dst, str, len); dst += len;
+  sav = Parse(Ccurrent); len = *sav++; MemCpy(dst, sav, len); dst += len; write(1, Cvdat + 1024, (dst - Cvdat - 1024)); }
 int SystemSwitch(void) {
   static uint8_t flag = 1;
   if (flag) { VRam.size = SizeVram; if (!(VRam.addr = GetRam(&VRam.size))) return 0;
               flag--; SWD(VRam.addr); InitVram(VRam.addr,VRam.size); SwitchRaw(); Delay_ms(0);
-              SyncSize(VRam.addr,0); Print(Ccurrent,AltBufOn Reset HideCur WrapOn Cls MouseX10on); }
-  else {  flag++; if (VRam.size) { SwitchRaw(); Print(Ccurrent,MouseX10off AltBufOff WrapOn ShowCur Reset); FreeRam(VRam.addr, VRam.size); } }
+              SyncSize(VRam.addr,Off); Print(Ccurrent,AltBufOn Reset HideCur WrapOn Cls MouseX10on); }
+  else { flag++; if (VRam.size) { SwitchRaw(); Print(Ccurrent,MouseX10off AltBufOff WrapOn ShowCur Reset); FreeRam(VRam.addr, VRam.size); } }
   return 1; }
-  
+int Help(int argc, char *argv[], int flag) {
+  if (argc > 1) { 
+    if (MemCmp(argv[1], "-?",2) == 0 || MemCmp(argv[1], "-h",2) == 0 || MemCmp(argv[1], "-help",5) == 0) {
+      if (flag) { Print(Ccurrent,AltBufOff); Print(CorangeIB," Created by Alexey Pozdnyakov ");
+                  Print(Corange," in 07.02.2026 version 2.44 email: avp70ru@mail.ru https://github.com/AVPscan\n"); }
+      else printf("The processor did not allocate memory\n"); }
+    flag = 0; }
+  return flag; }
+
+
 uint32_t Bin( uint8_t x) {
   uint32_t c = 0, i = 8; while(i--){ c *= 10; if (x & 0x80) c++;
                                     x <<= 1; }
   return c + 100000000; }
-  
 void Show(void) { uint16_t r, c = TermCR(&r); size_t o, m = VRam.size;
   Print(Ccurrent,Home); if (18 > c) return;
   Print(Cgrey," esc 842  F2 F3 F4\n");
@@ -233,11 +241,3 @@ void Show(void) { uint16_t r, c = TermCR(&r); size_t o, m = VRam.size;
   snprintf(Cvdat + 100, 100, "x%d y%d wx%d wy%d xy%d     ", Cur.X, Cur.Y, Cur.viewX, Cur.viewY, Cur.dXY);
   if (StrLen(Cvdat + 100) > c) return;
   Print(Cblue,Cvdat); Print(Cgreen,Cvdat + 100); }
-
-int Help(int argc, char *argv[], int flag) {
-  if (argc > 1 && flag) { 
-    if (MemCmp(argv[1], "-?",2) == 0 || MemCmp(argv[1], "-h",2) == 0 || MemCmp(argv[1], "-help",5) == 0) {
-      Print(Ccurrent,AltBufOff); Print(CorangeIB," Created by Alexey Pozdnyakov ");
-      Print(Corange," in 07.02.2026 version 2.44 email: avp70ru@mail.ru https://github.com/AVPscan\n"); }
-    flag = 0; }
-  return flag; }

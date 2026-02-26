@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 //#define USE_BW
-//#define USE_RGB
+#define USE_RGB
 
 #ifdef USE_BW
   #define Grey    ""
