@@ -19,7 +19,7 @@
 
 #include "sys.h"
 
-Cell SysWrite(void *buf, Cell len) { return (Cell)write(1, buf, (Cell)len); }
+Cell SysWrite(void *buf, Cell len) { return (Cell)write(1, buf, len); }
 
 void SwitchRaw(void) { 
     static struct termios oldt; static uint8_t flag = 1;

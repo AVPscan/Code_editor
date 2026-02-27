@@ -14,10 +14,7 @@
 
 #include "sys.h"
 
-Cell SysWrite(void *buf, Cell len) {
-    DWORD written; HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-    WriteFile(h, buf, (DWORD)len, &written, NULL);
-    return (Cell)written; }
+Cell SysWrite(void *buf, Cell len) { return (Cell)_write(1, buf, (unsigned int)len); }
 
 void SwitchRaw(void) {
     HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE); HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE); CONSOLE_CURSOR_INFO ci;
@@ -25,14 +22,16 @@ void SwitchRaw(void) {
     if (flag) {
         oldCP = GetConsoleCP(); oldOutCP = GetConsoleOutputCP();
         GetConsoleMode(hIn, &oldModeIn); GetConsoleMode(hOut, &oldModeOut);
-        SetConsoleCP(65001); SetConsoleOutputCP(65001);
+        SetConsoleCP(65001); SetConsoleOutputCP(65001); CONSOLE_CURSOR_INFO cinfo;
+        GetConsoleCursorInfo(hOut, &cinfo); cinfo.bVisible = FALSE; SetConsoleCursorInfo(hOut, &cinfo);
         DWORD newModeIn = oldModeIn & ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_QUICK_EDIT_MODE);
         newModeIn |= (ENABLE_EXTENDED_FLAGS | ENABLE_MOUSE_INPUT | ENABLE_VIRTUAL_TERMINAL_INPUT);
         SetConsoleMode(hIn, newModeIn);
         SetConsoleMode(hOut, oldModeOut | ENABLE_VIRTUAL_TERMINAL_PROCESSING); flag = 0; }
     else {
         FlushConsoleInputBuffer(hIn); SetConsoleCP(oldCP); SetConsoleOutputCP(oldOutCP); SetConsoleMode(hIn, oldModeIn);
-        SetConsoleMode(hOut, oldModeOut); flag = 1; } }
+        CONSOLE_CURSOR_INFO cinfo; GetConsoleCursorInfo(hOut, &cinfo); cinfo.bVisible = TRUE;
+        SetConsoleCursorInfo(hOut, &cinfo); SetConsoleMode(hOut, oldModeOut); flag = 1; } }
 
 typedef struct { const char *name; unsigned char id; } KeyIdMap;
 KeyIdMap NameId[] = { {"[A", K_UP}, {"[B", K_DOW}, {"[C", K_RIG}, {"[D", K_LEF},
@@ -67,20 +66,20 @@ void GetKey(char *b) {
         if (j < 0) *p = 0;
         if (*p++ == K_Mouse) { len = 4; while(--len) _read(0, p++, 1); } }
 
-Cell GetRam(Cell *size) { if (!*size) return 0;
-    Cell l = (*size + 0xFFF) & ~0xFFF; void *r = VirtualAlloc(NULL, l, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+size_t GetRam(size_t *size) { if (!*size) return 0;
+    size_t l = (*size + 0xFFF) & ~0xFFF; void *r = VirtualAlloc(NULL, l, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!r) l = 0;
-    *size = l; return (Cell)r; }
-void FreeRam(Cell addr, Cell size) { if (addr) VirtualFree((void*)addr, 0, MEM_RELEASE); }
+    *size = l; return (size_t)r; }
+void FreeRam(size_t addr, size_t size) { (void)size; if (addr) VirtualFree((void*)addr, 0, MEM_RELEASE); }
 
-void SWD(Cell addr) { if (!addr) return;
+void SWD(size_t addr) { if (!addr) return;
     char *path = (char *)(addr); DWORD len = GetModuleFileNameA(NULL, path, 1024); if (len == 0) return;
     for (char *p = path + len; p > path; p--) if (*p == '\\' || *p == '/') { *p = '\0'; SetCurrentDirectoryA(path); break; } }
     
 typedef struct { uint16_t col , row; } TermState;
 TermState TS = {0};
 uint16_t TermCR(uint16_t *r) { *r = TS.row; return TS.col; }
-int16_t SyncSize(Cell addr, uint8_t flag) { 
+int16_t SyncSize(size_t addr, uint8_t flag) {
     if (!addr) return 0;
     static HANDLE hOut = NULL; 
     if (!hOut) hOut = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -91,7 +90,7 @@ int16_t SyncSize(Cell addr, uint8_t flag) {
     if (w == TS.col && h == TS.row) return 0;
     if (flag) { 
         uint8_t stable = 70;
-        while (stable) { Print(Ccurrent,HideCur);
+        while (stable) {
             Delay_ms(10); stable -= 10;
             if (GetConsoleScreenBufferInfo(hOut, &csbi)) {
                 uint16_t cur_w = csbi.srWindow.Right - csbi.srWindow.Left + 1;
@@ -100,35 +99,28 @@ int16_t SyncSize(Cell addr, uint8_t flag) {
     TS.col = w; TS.row = h; return 1; }
 
 Cell GetCycles(void) {
-    Cell lo, hi;
-    __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
-    #if __SIZEOF_POINTER__ > 4
-      return (lo + (hi << 32));
-    #else
-      return lo;
-    #endif
-    }
+    LARGE_INTEGER li; QueryPerformanceCounter(&li); return (Cell)li.QuadPart; }
 void Delay_ms(uint8_t ms) {
-    static Cell cpu_hz = 0;
-    if (cpu_hz == 0) {
-        LARGE_INTEGER freq, c1, c2; QueryPerformanceFrequency(&freq); QueryPerformanceCounter(&c1);
-        Cell start = GetCycles();
-        do { QueryPerformanceCounter(&c2); } 
-        while ((c2.QuadPart - c1.QuadPart) < freq.QuadPart / 100);
-        cpu_hz = (GetCycles() - start) * 100; if (cpu_hz == 0) cpu_hz = 1; }
-    Cell total = (Cell)ms * (cpu_hz / 1000);
-    Cell start_time = GetCycles();
-    if (ms > 2) { static HANDLE hTimer = NULL;
-      if (!hTimer) hTimer = CreateWaitableTimer(NULL, TRUE, NULL);
-      LARGE_INTEGER li; li.QuadPart = -((LONGLONG)(ms - 1) * 10000);
-      SetWaitableTimer(hTimer, &li, 0, NULL, NULL, FALSE); WaitForSingleObject(hTimer, INFINITE); }
-    LARGE_INTEGER f, q1, q2; QueryPerformanceFrequency(&f); QueryPerformanceCounter(&q1); Cell safety = 0;
-    while ((GetCycles() - start_time) < total) { __asm__ volatile ("pause");
-        if (++safety > 2000) { QueryPerformanceCounter(&q2);
-            if ((Cell)(q2.QuadPart - q1.QuadPart) > (Cell)f.QuadPart) { cpu_hz = 0; break; }
-            safety = 0; q1 = q2; } } }
-Cell GetSC(Cell addr) { 
+    static LARGE_INTEGER freq, start, after_sleep; static int freq_init = 0; static uint64_t total_target = 0;
+    if (!freq_init) { QueryPerformanceFrequency(&freq); freq_init = 1; }
+    if (ms == 0) { SwitchToThread(); return; }
+    LARGE_INTEGER now; QueryPerformanceCounter(&now);
+    if (ms > 2) { Sleep(ms - 2);
+        QueryPerformanceCounter(&after_sleep);
+        uint64_t elapsed = after_sleep.QuadPart - now.QuadPart; uint64_t target = (freq.QuadPart * ms) / 1000;
+        if (elapsed < target) {
+            while (1) {
+                QueryPerformanceCounter(&after_sleep); if ((uint64_t)(after_sleep.QuadPart - now.QuadPart) >= target) break;
+                __asm__ volatile ("pause"); } } }
+    else {
+        uint64_t target = now.QuadPart + (freq.QuadPart * ms) / 1000;
+        while (1) {
+            QueryPerformanceCounter(&now); if ((uint64_t)now.QuadPart >= target) break;
+            __asm__ volatile ("pause"); } } }
+Cell GetSC(Cell addr) {
     if (!addr || !TS.col) return 1;
     char *p = (char *)(addr); MemSet(p, ' ', TS.col - 1); p[TS.col - 1] = '\r';
-    Cell start = GetCycles(); for(Cell i = 0; i < 100; i++) SysWrite(p, TS.col);
-    Cell end = GetCycles(); return (end - start) / (TS.col * 10); }
+    LARGE_INTEGER start, end, freq; QueryPerformanceFrequency(&freq); QueryPerformanceCounter(&start);
+    for(Cell i = 0; i < 100; i++) SysWrite(p, TS.col);
+    QueryPerformanceCounter(&end);
+    return (Cell)((end.QuadPart - start.QuadPart) * 1000 / (TS.col * 10)); }
